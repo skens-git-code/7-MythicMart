@@ -1,0 +1,53 @@
+/* Product data — images use Unsplash for reliable, high-quality display */
+const products = [
+    {
+        id: 1,
+        name: 'Obsidian Chronograph',
+        description: 'Precision-engineered timepiece with sapphire crystal.',
+        price: 199.00,
+        originalPrice: 249.00,
+        category: 'accessories',
+        image: 'https://images.unsplash.com/photo-1523170335258-f5ed11844a49?w=600&q=80',
+        badge: 'Best Seller',
+        stock: 12,
+        freeShipping: true,
+    },
+    {
+        id: 2,
+        name: 'Midnight Leather Tote',
+        description: 'Hand-stitched Italian leather, timeless silhouette.',
+        price: 129.00,
+        originalPrice: null,
+        category: 'bags',
+        image: 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=600&q=80',
+        badge: null,
+        stock: 8,
+        freeShipping: true,
+    },
+    {
+        id: 3,
+        name: 'Carbon Fiber Sunglasses',
+        description: 'Ultra-light polarized lenses with matte finish.',
+        price: 139.00,
+        originalPrice: 179.00,
+        category: 'accessories',
+        image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&q=80',
+        badge: 'New',
+        stock: 24,
+        freeShipping: false,
+    },
+    {
+        id: 4,
+        name: 'Onyx Wireless Earbuds',
+        description: 'Studio-quality sound in a minimal design.',
+        price: 149.00,
+        originalPrice: null,
+        category: 'electronics',
+        image: 'https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?w=600&q=80',
+        badge: 'Trending',
+        stock: 5,
+        freeShipping: true,
+    },
+];
+
+export default products;
