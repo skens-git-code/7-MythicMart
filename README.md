@@ -11,7 +11,7 @@
 
 <img src="https://readme-typing-svg.demolab.com?font=Outfit&weight=700&size=32&duration=2500&pause=800&color=646CFF&center=true&vCenter=true&width=600&height=60&lines=Glassmorphism+UI;React+18+%2B+Vite;Context+API;Responsive+Design" alt="Typing SVG" />
 
-[View Demo](#) · [Report Bug](issues) · [Request Feature](issues)
+[View Demo](https://skens-git-code.github.io/7-MythicMart/) · [Report Bug](issues) · [Request Feature](issues)
 
 </div>
 
