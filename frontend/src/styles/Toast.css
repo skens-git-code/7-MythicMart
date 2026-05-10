@@ -1,0 +1,105 @@
+/* ── Toast Container ── */
+.toast-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  pointer-events: none;
+}
+
+/* ── Toast Notification ── */
+.toast {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border-radius: var(--card-radius);
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-width: 300px;
+  max-width: 400px;
+  pointer-events: auto;
+  animation: slideInRight 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  position: relative;
+  overflow: hidden;
+}
+
+[data-theme='dark'] .toast {
+  background: rgba(20, 20, 20, 0.8);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Content ── */
+.toast-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.toast-message {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ── Icons ── */
+.success-icon { color: #10b981; }
+.error-icon { color: #ef4444; }
+.info-icon { color: #3b82f6; }
+
+/* ── Close Button ── */
+.toast-close {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: var(--btn-radius);
+  transition: all 0.2s ease;
+}
+
+.toast-close:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary);
+}
+
+[data-theme='dark'] .toast-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Animation ── */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ── Mobile ── */
+@media (max-width: 480px) {
+  .toast-container {
+    bottom: 1rem;
+    right: 1rem;
+    left: 1rem;
+  }
+  
+  .toast {
+    min-width: unset;
+    width: 100%;
+  }
+}

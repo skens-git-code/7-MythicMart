@@ -3,32 +3,55 @@
 
 <head>
   <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <!-- SEO Meta -->
-  <meta name="description"
-    content="MythicMart — Premium e-commerce experience with immersive Glass OS design. Discover trending products, exclusive deals, and a next-generation shopping interface." />
-  <meta name="keywords" content="MythicMart, e-commerce, premium shopping, Glass OS, online store" />
-  <meta name="author" content="MythicMart" />
-  <meta name="theme-color" content="#111111" />
+  <!-- Favicon (inline SVG — no external request) -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'><rect width='36' height='36' rx='10' fill='%23111'/><text x='18' y='25' text-anchor='middle' font-family='system-ui,sans-serif' font-size='14' font-weight='800' fill='%23c9a96e'>MM</text></svg>" />
+
+  <!-- PWA -->
+  <link rel="manifest" href="%BASE_URL%manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="MythicMart" />
+
+  <!-- Theme color (dark/light) -->
+  <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#f8f9fa" media="(prefers-color-scheme: light)" />
+
+  <!-- SEO -->
+  <title>MythicMart — The Future of Shopping</title>
+  <meta name="description" content="MythicMart — Premium e-commerce with immersive Glass OS design. Discover trending products, exclusive deals, and a next-generation shopping experience." />
+  <meta name="keywords" content="MythicMart, premium shopping, e-commerce, luxury, accessories, electronics" />
+  <meta name="author" content="Sarthak Mathapati" />
+  <meta name="robots" content="index, follow" />
 
   <!-- Open Graph -->
   <meta property="og:title" content="MythicMart — The Future of Shopping" />
-  <meta property="og:description"
-    content="Experience the next generation of e-commerce. Immersive, fast, and beautiful." />
+  <meta property="og:description" content="Experience the next generation of e-commerce. Immersive, fast, and beautiful." />
   <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://skens-git-code.github.io/7-MythicMart/" />
+  <meta property="og:image" content="%BASE_URL%assets/hero-watch.png" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="MythicMart — The Future of Shopping" />
+  <meta name="twitter:description" content="Experience the next generation of e-commerce. Immersive, fast, and beautiful." />
+  <meta name="twitter:image" content="%BASE_URL%assets/hero-watch.png" />
 
   <!-- Preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="preconnect" href="https://images.unsplash.com" />
 
-  <title>MythicMart — The Future of Shopping</title>
+  <!-- Google Fonts — preload then stylesheet (non-render-blocking) -->
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" media="print" onload="this.media='all'" />
+  <noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" />
+  </noscript>
 </head>
 
 <body>
-  <noscript>You need to enable JavaScript to run this app.</noscript>
+  <noscript>You need to enable JavaScript to run MythicMart.</noscript>
   <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>

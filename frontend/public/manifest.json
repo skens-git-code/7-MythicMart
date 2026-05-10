@@ -1,0 +1,20 @@
+{
+  "name": "MythicMart",
+  "short_name": "MythicMart",
+  "description": "Premium e-commerce experience with immersive Glass OS design.",
+  "start_url": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0a0a",
+  "theme_color": "#c9a96e",
+  "lang": "en",
+  "icons": [
+    {
+      "src": "assets/product-watch.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["shopping", "lifestyle"]
+}

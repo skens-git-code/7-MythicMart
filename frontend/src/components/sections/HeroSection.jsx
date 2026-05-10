@@ -1,73 +1,140 @@
 import React from 'react';
-import { ArrowRight, Play, Trophy } from 'lucide-react';
+import { ArrowUpRight, Play, ShieldCheck, Sparkles, Star, TrendingUp } from 'lucide-react';
+import products from '../../data/products';
+import { formatPrice } from '../../utils/formatters';
+import { ROUTES, toHashPath } from '../../utils/routes';
 import '../../styles/HeroSection.css';
 
-/* Hero banner with headline, CTA buttons, and featured product showcase */
+const heroProduct = products[3];
+const miniProducts = [products[0], products[1], products[2]];
+const colorSwatches = ['#2f6fed', '#ff8a1f', '#16a34a', '#ef4444', '#22c8cf'];
+
 const HeroSection = () => {
-    return (
-        <section className="hero-section" aria-label="Hero banner">
-            {/* Left: headline + CTA */}
-            <div className="hero-content">
-                <span className="hero-badge" role="status">New Arrival</span>
-                <h1 className="hero-title">
-                    The Future of <br />
-                    <span className="text-gradient">Shopping</span> is Here
-                </h1>
-                <p className="hero-subtitle">
-                    Experience the next generation of e-commerce. Immersive, fast, and
-                    beautiful.
-                </p>
-                <div className="hero-actions">
-                    <a href="#products" className="primary-btn" role="button">
-                        Start Exploring <ArrowRight size={20} aria-hidden="true" />
-                    </a>
-                    <button className="secondary-btn" aria-label="Watch product demo video">
-                        <Play size={20} fill="currentColor" aria-hidden="true" /> Watch Demo
-                    </button>
-                </div>
-            </div>
+  return (
+    <section className="hero-section" aria-label="MythicMart premium shopping experience">
+      <div className="hero-copy">
+        <span className="hero-badge">
+          <Sparkles size={15} aria-hidden="true" />
+          AI-curated luxury commerce
+        </span>
+        <h1 className="hero-title">
+          MythicMart Luxe Commerce OS.
+        </h1>
+        <p className="hero-subtitle">
+          A futuristic storefront and dashboard experience for premium products, intelligent discovery,
+          real-time operations, and smooth customer journeys.
+        </p>
+        <div className="hero-actions">
+          <a href="#products" className="primary-btn">
+            Explore products <ArrowUpRight size={19} aria-hidden="true" />
+          </a>
+          <a href={toHashPath(ROUTES.DASHBOARD)} className="secondary-btn">
+            <Play size={18} fill="currentColor" aria-hidden="true" /> View dashboard
+          </a>
+        </div>
+      </div>
 
-            {/* Right: featured product image with floating cards */}
-            <div className="hero-image-container" aria-hidden="true">
-                <div className="hero-product-display">
-                    <img
-                        src="https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=800&q=80"
-                        alt="Obsidian Chronograph"
-                        className="hero-watch-image"
-                    />
-                    {/* Rewards card overlay */}
-                    <div className="hero-card rewards-card">
-                        <div className="card-header">
-                            <div className="rewards-title">
-                                <Trophy size={16} strokeWidth={2.5} />
-                                <span>Rewards</span>
-                            </div>
-                            <span className="rewards-tier">Gold</span>
-                        </div>
-                        <div className="rewards-balance">
-                            <div className="rewards-content">
-                                <span className="rewards-label">Balance</span>
-                                <strong className="rewards-amount">$240.00</strong>
-                            </div>
-                            <div className="rewards-chart">
-                                <div className="chart-bar" style={{ height: '40%' }}></div>
-                                <div className="chart-bar" style={{ height: '70%' }}></div>
-                                <div className="chart-bar active" style={{ height: '100%' }}></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Floating indicator pills */}
-                <div className="floating-element float-1">
-                    <span>⚡ Flash Sale</span>
-                </div>
-                <div className="floating-element float-2">
-                    <span>🚚 Free Shipping</span>
-                </div>
+      <div className="hero-experience" aria-label="Featured product command board">
+        <div className="hero-feature-card">
+          <div className="hero-card-copy">
+            <span className="micro-label">
+              <ShieldCheck size={14} aria-hidden="true" />
+              Featured drop
+            </span>
+            <h2>{heroProduct.name}</h2>
+            <p>{heroProduct.description}</p>
+            <div className="hero-product-meta">
+              <span>{formatPrice(heroProduct.price)}</span>
+              <span><Star size={14} fill="currentColor" aria-hidden="true" /> {heroProduct.rating}</span>
             </div>
-        </section>
-    );
+          </div>
+
+          <div className="hero-product-stage">
+            <img
+              src={heroProduct.image}
+              alt={heroProduct.name}
+              className="hero-product-image"
+              fetchPriority="high"
+              loading="eager"
+              decoding="async"
+              width="640"
+              height="640"
+            />
+            <span className="stage-ring one" aria-hidden="true" />
+            <span className="stage-ring two" aria-hidden="true" />
+            <div className="floating-spec spec-top">
+              <strong>{heroProduct.aiScore}%</strong>
+              <span>AI match</span>
+            </div>
+            <div className="floating-spec spec-bottom">
+              <TrendingUp size={15} aria-hidden="true" />
+              <span>Trending</span>
+            </div>
+          </div>
+        </div>
+
+        <aside className="hero-side-panel" aria-label="Popular product shortcuts">
+          <article className="color-card">
+            <div>
+              <span className="micro-label">Popular colors</span>
+              <p>Personalized palettes</p>
+            </div>
+            <div className="swatch-row" aria-hidden="true">
+              {colorSwatches.map((color) => (
+                <span key={color} style={{ '--swatch': color }} />
+              ))}
+            </div>
+          </article>
+
+          <article className="spotlight-card">
+            <div>
+              <span className="micro-label">New Gen</span>
+              <h3>{products[0].name}</h3>
+            </div>
+            <img src={products[0].image} alt="" aria-hidden="true" loading="lazy" />
+            <a href={toHashPath(`/products/${products[0].slug}`)} aria-label={`View ${products[0].name}`}>
+              <ArrowUpRight size={17} aria-hidden="true" />
+            </a>
+          </article>
+        </aside>
+
+        <div className="hero-bottom-grid">
+          <article className="mini-gallery-card">
+            <div>
+              <strong>More products</strong>
+              <span>460 plus curated items</span>
+            </div>
+            <div className="mini-gallery">
+              {miniProducts.map((product) => (
+                <img src={product.image} alt="" aria-hidden="true" loading="lazy" key={product.id} />
+              ))}
+            </div>
+          </article>
+
+          <article className="social-proof-card">
+            <div className="avatar-stack" aria-hidden="true">
+              <span>RA</span>
+              <span>NC</span>
+              <span>EP</span>
+            </div>
+            <strong>5m+</strong>
+            <span>personalized recommendations delivered</span>
+          </article>
+
+          <article className="release-card">
+            <span className="micro-label">Popular</span>
+            <h3>Listening Has Been Released</h3>
+            <div className="release-footer">
+              <span><Star size={14} fill="currentColor" aria-hidden="true" /> 4.7</span>
+              <a href={toHashPath(ROUTES.PRODUCTS)} aria-label="Open product catalog">
+                <ArrowUpRight size={16} aria-hidden="true" />
+              </a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+  );
 };
 
 export default HeroSection;

@@ -1,138 +1,241 @@
-import React, { useState, useCallback } from 'react';
-import { Search, ShoppingBag, Heart, Menu, X, Sun, Moon, ArrowRight } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Bell,
+  Heart,
+  Menu,
+  Moon,
+  Search,
+  ShoppingBag,
+  SlidersHorizontal,
+  Sparkles,
+  Sun,
+  UserRound,
+  X,
+} from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import { useCart } from '../../hooks/useCart';
+import { useUI } from '../../context/UIContext';
+import { primaryNavLinks } from '../../data/siteContent';
+import products from '../../data/products';
+import { ROUTES, toHashPath } from '../../utils/routes';
 import '../../styles/GlassNavbar.css';
 
-/* Glassmorphism floating navbar with search, actions, and mobile menu */
+const suggestionLimit = 4;
+
 const GlassNavbar = () => {
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-    const { theme, toggleTheme } = useTheme();
-    const { totalCount } = useCart();
+  const { theme, toggleTheme } = useTheme();
+  const { totalCount } = useCart();
+  const { openCart, searchQuery, setSearchQuery } = useUI();
 
-    const closeMobileMenu = useCallback(() => setIsMobileMenuOpen(false), []);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false);
 
-    /* Close mobile menu on Escape key */
-    const handleKeyDown = useCallback((e) => {
-        if (e.key === 'Escape' && isMobileMenuOpen) closeMobileMenu();
-    }, [isMobileMenuOpen, closeMobileMenu]);
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 18);
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
-    return (
-        <nav aria-label="Main navigation" onKeyDown={handleKeyDown}>
-            {/* Desktop nav island */}
-            <div className="glass-nav-main-island" role="banner">
-                <a href="/" className="navbar-logo" aria-label="MythicMart home">
-                    <span className="logo-icon" aria-hidden="true">MM</span>
-                    <span className="logo-text">MYTHICMART</span>
-                </a>
+  const closeMobileMenu = useCallback(() => setIsMobileMenuOpen(false), []);
 
-                {/* Search bar */}
-                <form className="navbar-search-container desktop-only" role="search" onSubmit={e => e.preventDefault()}>
-                    <label htmlFor="desktop-search" className="sr-only">Search products</label>
-                    <input
-                        id="desktop-search"
-                        type="search"
-                        placeholder="Search products..."
-                        className="navbar-search-input"
-                        autoComplete="off"
-                    />
-                    <button type="submit" className="navbar-search-btn" aria-label="Search">
-                        <Search size={18} strokeWidth={2.5} aria-hidden="true" />
-                    </button>
-                </form>
+  const searchSuggestions = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    const source = term
+      ? products.filter((product) =>
+          [product.name, product.category, product.brand, product.collection]
+            .filter(Boolean)
+            .some((value) => value.toLowerCase().includes(term))
+        )
+      : products.filter((product) => product.badge || product.aiScore > 94);
 
-                {/* Desktop action icons */}
-                <div className="navbar-actions desktop-only" role="toolbar" aria-label="User actions">
-                    {/* Theme toggle */}
-                    <button
-                        className={`icon-btn ${theme === 'dark' ? 'active' : ''}`}
-                        onClick={toggleTheme}
-                        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-                    >
-                        {theme === 'dark' ? <Sun size={20} aria-hidden="true" /> : <Moon size={20} aria-hidden="true" />}
-                    </button>
+    return source.slice(0, suggestionLimit);
+  }, [searchQuery]);
 
-                    {/* Cart */}
-                    <button className="icon-btn" aria-label={`Shopping cart, ${totalCount} items`}>
-                        <ShoppingBag size={20} strokeWidth={2.5} aria-hidden="true" />
-                        <span className="cart-badge" aria-hidden="true">{totalCount}</span>
-                    </button>
+  const runSearch = useCallback(() => {
+    window.location.hash = toHashPath(ROUTES.PRODUCTS).replace(/^#/, '');
+    window.setTimeout(() => {
+      document.getElementById('products')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+    closeMobileMenu();
+    setIsSearchActive(false);
+  }, [closeMobileMenu]);
 
-                    {/* Wishlist */}
-                    <button className="icon-btn heart-btn" aria-label="Wishlist">
-                        <Heart size={20} strokeWidth={2.5} aria-hidden="true" />
-                    </button>
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+    runSearch();
+  };
 
-                    {/* User profile chip */}
-                    <div className="user-profile" role="button" tabIndex={0} aria-label="User profile, Ryman Alex">
-                        <span className="user-name">Arpita S</span>
-                        <div className="avatar-container">
-                            <img
-                                src="https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?w=100&q=80"
-                                alt="Ryman Alex profile"
-                                className="user-avatar"
-                                loading="lazy"
-                                onError={(e) => {
-                                    e.target.src = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect fill="#ddd" width="100" height="100"/><text x="50" y="55" text-anchor="middle" fill="#999" font-size="40">RA</text></svg>')}`;
-                                }}
-                            />
-                            <span className="status-dot" aria-label="Online"></span>
-                        </div>
-                    </div>
-                </div>
+  const handleSuggestionClick = (name) => {
+    setSearchQuery(name);
+    runSearch();
+  };
 
-                {/* Mobile hamburger toggle */}
+  const handleKeyDown = useCallback((event) => {
+    if (event.key === 'Escape') {
+      closeMobileMenu();
+      setIsSearchActive(false);
+    }
+  }, [closeMobileMenu]);
+
+  return (
+    <nav aria-label="Main navigation" onKeyDown={handleKeyDown}>
+      <div className={`glass-nav-main-island ${isScrolled ? 'scrolled' : ''}`}>
+        <a href={toHashPath(ROUTES.HOME)} className="navbar-logo" aria-label="MythicMart home">
+          <span className="logo-icon" aria-hidden="true">M</span>
+          <span className="logo-lockup">
+            <span className="logo-text">MythicMart</span>
+            <span className="logo-subtitle">Luxe OS</span>
+          </span>
+        </a>
+
+        <div className="navbar-primary-links desktop-only" aria-label="Primary">
+          {primaryNavLinks.slice(0, 5).map((link) => (
+            <a href={toHashPath(link.path)} key={link.path}>{link.label}</a>
+          ))}
+        </div>
+
+        <form className="navbar-search-container desktop-only" role="search" onSubmit={handleSearchSubmit}>
+          <label htmlFor="desktop-search" className="sr-only">Search products</label>
+          <Sparkles size={16} className="search-leading-icon" aria-hidden="true" />
+          <input
+            id="desktop-search"
+            type="search"
+            placeholder="Search products, collections, categories..."
+            className="navbar-search-input"
+            autoComplete="off"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            onFocus={() => setIsSearchActive(true)}
+          />
+          <button type="submit" className="navbar-search-btn" aria-label="Search">
+            <Search size={18} strokeWidth={2.5} aria-hidden="true" />
+          </button>
+          {isSearchActive && searchSuggestions.length > 0 && (
+            <div className="search-suggestions" role="listbox" aria-label="Search suggestions">
+              <div className="suggestion-header">
+                <span>AI recommendations</span>
+                <SlidersHorizontal size={14} aria-hidden="true" />
+              </div>
+              {searchSuggestions.map((product) => (
                 <button
-                    className="mobile-menu-btn"
-                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
-                    aria-expanded={isMobileMenuOpen}
-                    aria-controls="mobile-menu"
+                  type="button"
+                  key={product.id}
+                  className="suggestion-row"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => handleSuggestionClick(product.name)}
                 >
-                    {isMobileMenuOpen ? <X size={24} aria-hidden="true" /> : <Menu size={24} aria-hidden="true" />}
+                  <img src={product.image} alt="" aria-hidden="true" loading="lazy" />
+                  <span>
+                    <strong>{product.name}</strong>
+                    <small>{product.collection || product.category}</small>
+                  </span>
                 </button>
+              ))}
             </div>
+          )}
+        </form>
 
-            {/* Mobile fullscreen menu */}
-            <div
-                id="mobile-menu"
-                className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`}
-                role="dialog"
-                aria-modal="true"
-                aria-label="Mobile menu"
-                aria-hidden={!isMobileMenuOpen}
-            >
-                <form className="mobile-search" role="search" onSubmit={e => e.preventDefault()}>
-                    <label htmlFor="mobile-search" className="sr-only">Search products</label>
-                    <input id="mobile-search" type="search" placeholder="Search products..." className="mobile-search-input" autoComplete="off" />
-                    <button type="submit" className="mobile-search-btn" aria-label="Search">
-                        <Search size={18} aria-hidden="true" />
-                    </button>
-                </form>
+        <div className="navbar-actions desktop-only" role="toolbar" aria-label="User actions">
+          <button
+            className={`icon-btn ${theme === 'dark' ? 'active' : ''}`}
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={19} aria-hidden="true" /> : <Moon size={19} aria-hidden="true" />}
+          </button>
 
-                <div className="mobile-links" role="list">
-                    <a href="#main-content" className="mobile-link" role="listitem" onClick={closeMobileMenu}>Home <ArrowRight size={18} aria-hidden="true" /></a>
-                    <a href="#products" className="mobile-link" role="listitem" onClick={closeMobileMenu}>Categories <ArrowRight size={18} aria-hidden="true" /></a>
-                    <a href="#products" className="mobile-link" role="listitem" onClick={closeMobileMenu}>Trending <ArrowRight size={18} aria-hidden="true" /></a>
-                    <a href="#products" className="mobile-link" role="listitem" onClick={closeMobileMenu}>Deals <ArrowRight size={18} aria-hidden="true" /></a>
-                </div>
+          <a className="icon-btn" aria-label="Notifications" href={toHashPath(ROUTES.NOTIFICATIONS)}>
+            <Bell size={19} aria-hidden="true" />
+            <span className="notification-dot" aria-hidden="true" />
+          </a>
 
-                <div className="mobile-actions">
-                    <button className="mobile-action-btn" onClick={toggleTheme}>
-                        {theme === 'dark' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
-                        {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                    </button>
-                    <button className="mobile-action-btn" aria-label={`Cart, ${totalCount} items`}>
-                        <ShoppingBag size={18} aria-hidden="true" /> Cart {totalCount > 0 && `(${totalCount})`}
-                    </button>
-                    <button className="mobile-action-btn" aria-label="Wishlist">
-                        <Heart size={18} aria-hidden="true" /> Wishlist
-                    </button>
-                    <button className="mobile-action-btn" aria-label="User profile">Profile</button>
-                </div>
-            </div>
-        </nav>
-    );
+          <a className="icon-btn heart-btn" aria-label="Wishlist" href={toHashPath(ROUTES.WISHLIST)}>
+            <Heart size={19} strokeWidth={2.5} aria-hidden="true" />
+          </a>
+
+          <button
+            className="icon-btn"
+            type="button"
+            aria-label={`Shopping cart, ${totalCount} items`}
+            onClick={openCart}
+          >
+            <ShoppingBag size={19} strokeWidth={2.5} aria-hidden="true" />
+            {totalCount > 0 && <span className="cart-badge" aria-hidden="true">{totalCount}</span>}
+          </button>
+
+          <a className="user-profile" aria-label="User profile" href={toHashPath(ROUTES.PROFILE)}>
+            <span className="user-name">Ryman Alex</span>
+            <span className="avatar-container" aria-hidden="true">
+              <UserRound size={18} />
+            </span>
+          </a>
+        </div>
+
+        <button
+          className="mobile-menu-btn"
+          type="button"
+          onClick={() => setIsMobileMenuOpen((open) => !open)}
+          aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={isMobileMenuOpen}
+          aria-controls="mobile-menu"
+        >
+          {isMobileMenuOpen ? <X size={24} aria-hidden="true" /> : <Menu size={24} aria-hidden="true" />}
+        </button>
+      </div>
+
+      <div
+        id="mobile-menu"
+        className={`mobile-menu-overlay ${isMobileMenuOpen ? 'open' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Mobile menu"
+        aria-hidden={!isMobileMenuOpen}
+      >
+        <form className="mobile-search" role="search" onSubmit={handleSearchSubmit}>
+          <label htmlFor="mobile-search" className="sr-only">Search products</label>
+          <input
+            id="mobile-search"
+            type="search"
+            placeholder="Search MythicMart"
+            className="mobile-search-input"
+            autoComplete="off"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+          <button type="submit" className="mobile-search-btn" aria-label="Search">
+            <Search size={18} aria-hidden="true" />
+          </button>
+        </form>
+
+        <div className="mobile-links" role="list">
+          {primaryNavLinks.map((link) => (
+            <a key={link.label} href={toHashPath(link.path)} className="mobile-link" role="listitem" onClick={closeMobileMenu}>
+              {link.label}
+            </a>
+          ))}
+        </div>
+
+        <div className="mobile-actions">
+          <button className="mobile-action-btn" type="button" onClick={toggleTheme}>
+            {theme === 'dark' ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+            {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+          </button>
+          <button className="mobile-action-btn" type="button" aria-label={`Cart, ${totalCount} items`} onClick={openCart}>
+            <ShoppingBag size={18} aria-hidden="true" /> Cart {totalCount > 0 && `(${totalCount})`}
+          </button>
+          <a className="mobile-action-btn" aria-label="Wishlist" href={toHashPath(ROUTES.WISHLIST)} onClick={closeMobileMenu}>
+            <Heart size={18} aria-hidden="true" /> Wishlist
+          </a>
+          <a className="mobile-action-btn" aria-label="Notifications" href={toHashPath(ROUTES.NOTIFICATIONS)} onClick={closeMobileMenu}>
+            <Bell size={18} aria-hidden="true" /> Alerts
+          </a>
+        </div>
+      </div>
+    </nav>
+  );
 };
 
 export default GlassNavbar;

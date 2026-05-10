@@ -1,97 +1,78 @@
-/* ── App Container ── */
+:root {
+  --nav-height: 112px;
+}
+
 .app-container {
   width: 100%;
   min-height: 100vh;
-  background-color: var(--bg-primary);
-  padding-top: 100px;
+  position: relative;
+  isolation: isolate;
+  padding-top: var(--nav-height);
+  background: var(--bg-gradient);
 }
 
-/* ── Ambient Background Gradient Blobs ── */
-.gradient-bg {
+.surface-bg {
   position: fixed;
   inset: 0;
-  z-index: 0;
-  overflow: hidden;
+  z-index: -1;
   pointer-events: none;
+  background:
+    linear-gradient(118deg, rgba(216, 255, 89, 0.13), transparent 31%),
+    linear-gradient(252deg, rgba(34, 200, 207, 0.13), transparent 36%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 56%);
 }
 
-.blob {
+[data-theme='dark'] .surface-bg {
+  background:
+    linear-gradient(118deg, rgba(216, 255, 89, 0.08), transparent 32%),
+    linear-gradient(252deg, rgba(34, 200, 207, 0.08), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 58%);
+}
+
+.surface-bg::after {
+  content: '';
   position: absolute;
-  border-radius: 50%;
-  opacity: 0.25;
-  filter: blur(120px);
-  animation: blobFloat 20s infinite ease-in-out;
-  transition: background-color 0.5s ease;
-  will-change: transform;
+  inset: 0;
+  background:
+    linear-gradient(120deg, transparent 0 46%, rgba(255, 255, 255, 0.35) 46.1% 46.25%, transparent 46.35% 100%),
+    linear-gradient(60deg, transparent 0 64%, rgba(7, 17, 18, 0.06) 64.1% 64.2%, transparent 64.3% 100%);
+  opacity: 0.55;
 }
 
-.blob-1 {
-  width: 450px;
-  height: 450px;
-  background: var(--blob-1);
-  top: -100px;
-  left: -100px;
+[data-theme='dark'] .surface-bg::after {
+  opacity: 0.34;
+  background:
+    linear-gradient(120deg, transparent 0 46%, rgba(255, 255, 255, 0.09) 46.1% 46.25%, transparent 46.35% 100%),
+    linear-gradient(60deg, transparent 0 64%, rgba(216, 255, 89, 0.08) 64.1% 64.2%, transparent 64.3% 100%);
 }
 
-.blob-2 {
-  width: 350px;
-  height: 350px;
-  background: var(--blob-2);
-  top: 40%;
-  right: -80px;
-  animation-delay: 4s;
-}
-
-.blob-3 {
-  width: 400px;
-  height: 400px;
-  background: var(--blob-3);
-  bottom: -120px;
-  left: 20%;
-  animation-delay: 8s;
-}
-
-@keyframes blobFloat {
-
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-
-  33% {
-    transform: translate(12px, -16px) scale(1.02);
-  }
-
-  66% {
-    transform: translate(-8px, 10px) scale(0.98);
-  }
-}
-
-/* ── Main Content Area ── */
-.content-area {
-  position: relative;
-  z-index: 10;
-  padding: 0 2rem 3rem;
-  max-width: 1200px;
+.main-content {
+  width: min(var(--container-width), calc(100% - 32px));
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: clamp(2rem, 4vw, 4rem);
+  padding-bottom: 3rem;
+  position: relative;
+  z-index: 1;
 }
 
-/* ── Mobile Adjustments ── */
+.section-loading {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
 @media (max-width: 968px) {
-  .app-container {
-    padding-top: 80px;
+  :root {
+    --nav-height: max(88px, calc(env(safe-area-inset-top) + 72px));
   }
 
-  .blob {
-    opacity: 0.15;
-    filter: blur(150px);
-  }
-
-  .content-area {
-    padding: 0 1rem 2rem;
-    gap: 1.5rem;
+  .main-content {
+    width: min(100% - 24px, 760px);
+    gap: 2rem;
+    padding-bottom: 2rem;
   }
 }
