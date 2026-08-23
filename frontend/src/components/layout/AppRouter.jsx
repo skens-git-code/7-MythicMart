@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useRoute } from '../../hooks/useRoute';
+import ProtectedRoute from './ProtectedRoute';
 import { ROUTES } from '../../utils/routes';
 import {
   AboutPage,
@@ -50,16 +51,16 @@ const AppRouter = () => {
       [ROUTES.SERVICES]: <ServicesPage />,
       [ROUTES.PRODUCTS]: <ProductsPage />,
       [ROUTES.CATEGORIES]: <CategoriesPage />,
-      [ROUTES.DASHBOARD]: <UserDashboardPage />,
-      [ROUTES.ADMIN]: <AdminDashboardPage />,
-      [ROUTES.ANALYTICS]: <AnalyticsPage />,
-      [ROUTES.ORDERS]: <OrdersPage />,
-      [ROUTES.WISHLIST]: <WishlistPage />,
+      [ROUTES.DASHBOARD]: <ProtectedRoute><UserDashboardPage /></ProtectedRoute>,
+      [ROUTES.ADMIN]: <ProtectedRoute><AdminDashboardPage /></ProtectedRoute>,
+      [ROUTES.ANALYTICS]: <ProtectedRoute><AnalyticsPage /></ProtectedRoute>,
+      [ROUTES.ORDERS]: <ProtectedRoute><OrdersPage /></ProtectedRoute>,
+      [ROUTES.WISHLIST]: <ProtectedRoute><WishlistPage /></ProtectedRoute>,
       [ROUTES.CART]: <CartPage />,
-      [ROUTES.CHECKOUT]: <CheckoutPage />,
-      [ROUTES.PROFILE]: <ProfilePage />,
-      [ROUTES.SETTINGS]: <SettingsPage />,
-      [ROUTES.NOTIFICATIONS]: <NotificationsPage />,
+      [ROUTES.CHECKOUT]: <ProtectedRoute><CheckoutPage /></ProtectedRoute>,
+      [ROUTES.PROFILE]: <ProtectedRoute><ProfilePage /></ProtectedRoute>,
+      [ROUTES.SETTINGS]: <ProtectedRoute><SettingsPage /></ProtectedRoute>,
+      [ROUTES.NOTIFICATIONS]: <ProtectedRoute><NotificationsPage /></ProtectedRoute>,
       [ROUTES.CONTACT]: <ContactPage />,
       [ROUTES.FAQ]: <FAQPage />,
       [ROUTES.BLOG]: <BlogPage />,

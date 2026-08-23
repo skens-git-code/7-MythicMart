@@ -1,0 +1,70 @@
+.minimal-modal {
+  margin: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--card-radius);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  box-shadow: var(--lift-shadow);
+  max-width: 500px;
+  width: 90%;
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.minimal-modal[open] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.minimal-modal::backdrop {
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.minimal-modal[open]::backdrop {
+  opacity: 1;
+}
+
+.modal-content-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--bg-muted);
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: var(--btn-radius);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.modal-close-btn:hover {
+  background: var(--bg-muted);
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}

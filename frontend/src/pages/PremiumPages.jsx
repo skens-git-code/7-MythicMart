@@ -24,9 +24,10 @@ import {
   Truck,
   UserRound,
 } from 'lucide-react';
-import HeroSection from '../components/sections/HeroSection';
-import ProductSection from '../components/sections/ProductSection';
-import CategoryFilter from '../components/ui/CategoryFilter';
+import HeroSection from '../components/common/HeroSection';
+import ProductSection from '../features/products/components/ProductSection';
+import CategoryFilter from '../features/products/components/CategoryFilter';
+import AuthPanel from '../features/auth/components/AuthPanel';
 import products from '../data/products';
 import {
   adminMetrics,
@@ -50,9 +51,11 @@ import {
 import { useCart } from '../hooks/useCart';
 import { useUI } from '../context/UIContext';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
 import { CATEGORIES } from '../utils/constants';
 import { ROUTES, toHashPath } from '../utils/routes';
 import { formatPrice } from '../utils/formatters';
+import { api } from '../services/api';
 import '../styles/PremiumPages.css';
 
 const PageHero = ({ eyebrow, title, description, actions, compact = false }) => (
@@ -108,7 +111,7 @@ const ChartCard = ({ title = 'Revenue trend' }) => (
   </article>
 );
 
-const ProductMiniCard = ({ product, actionLabel = 'View details' }) => (
+const ProductMiniCard = ({ product, actionLabel = 'View details', onAction }) => (
   <article className="product-mini-card">
     <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
     <div>
@@ -117,7 +120,11 @@ const ProductMiniCard = ({ product, actionLabel = 'View details' }) => (
       <p>{product.description}</p>
       <div className="mini-card-footer">
         <strong>{formatPrice(product.price)}</strong>
-        <a href={toHashPath(`/products/${product.slug || product.id}`)}>{actionLabel}</a>
+        {onAction ? (
+          <button type="button" className="text-action" onClick={() => onAction(product)}>{actionLabel}</button>
+        ) : (
+          <a href={toHashPath(`/products/${product.slug || product.id}`)}>{actionLabel}</a>
+        )}
       </div>
     </div>
   </article>
@@ -156,53 +163,7 @@ const TableShell = ({ rows = orderTimeline, title = 'Recent orders' }) => (
   </article>
 );
 
-const AuthPanel = ({ mode }) => {
-  const labels = {
-    login: ['Welcome back', 'Access orders, wishlist, rewards, and dashboard tools.'],
-    signup: ['Create account', 'Start a protected shopping profile with personalized recommendations.'],
-    forgot: ['Reset password', 'Receive a secure recovery link and OTP verification.'],
-    otp: ['Verify OTP', 'Confirm your identity before sensitive account changes.'],
-  };
-  const [title, description] = labels[mode];
 
-  return (
-    <section className="auth-layout">
-      <div className="auth-copy">
-        <span className="page-eyebrow">Secure Access</span>
-        <h1>{title}</h1>
-        <p>{description}</p>
-        <div className="auth-benefit-list">
-          {authBenefits.map(({ icon, title: itemTitle, description: itemDescription }) => (
-            <div key={itemTitle}>
-              {React.createElement(icon, { size: 18, 'aria-hidden': true })}
-              <span>{itemTitle}</span>
-              <small>{itemDescription}</small>
-            </div>
-          ))}
-        </div>
-      </div>
-      <form className="premium-card auth-form">
-        {mode === 'signup' && <label>Name<input type="text" placeholder="Sarthak Mathapati" /></label>}
-        {(mode === 'login' || mode === 'signup' || mode === 'forgot') && (
-          <label>Email<input type="email" placeholder="you@mythicmart.com" /></label>
-        )}
-        {(mode === 'login' || mode === 'signup') && (
-          <label>Password<input type="password" placeholder="Password" /></label>
-        )}
-        {mode === 'otp' && <label>OTP Code<input type="text" inputMode="numeric" placeholder="123456" /></label>}
-        <button type="button" className="primary-action">
-          {mode === 'login' ? 'Login' : mode === 'signup' ? 'Create account' : mode === 'forgot' ? 'Send reset link' : 'Verify account'}
-          <ArrowRight size={18} />
-        </button>
-        <div className="auth-links">
-          <a href={toHashPath(ROUTES.LOGIN)}>Login</a>
-          <a href={toHashPath(ROUTES.SIGNUP)}>Signup</a>
-          <a href={toHashPath(ROUTES.FORGOT_PASSWORD)}>Forgot password</a>
-        </div>
-      </form>
-    </section>
-  );
-};
 
 export const HomePage = () => (
   <>
@@ -343,8 +304,57 @@ export const CategoriesPage = () => {
 export const ProductDetailsPage = ({ slug }) => {
   const { addItem } = useCart();
   const { addToast } = useToast();
+  const { user } = useAuth();
   const product = products.find(item => item.slug === slug || String(item.id) === slug) || products[0];
   const related = products.filter(item => item.category === product.category && item.id !== product.id).slice(0, 3);
+  
+  const [reviews, setReviews] = React.useState([]);
+  const [loadingReviews, setLoadingReviews] = React.useState(true);
+  const [showReviewForm, setShowReviewForm] = React.useState(false);
+  const [reviewForm, setReviewForm] = React.useState({ rating: 5, title: '', comment: '', guestName: '' });
+  const [submittingReview, setSubmittingReview] = React.useState(false);
+
+  React.useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const response = await api.get(`/reviews?productId=${product.id}`);
+        if (response.success) setReviews(response.data);
+      } catch (err) {
+        console.error('Failed to load reviews', err);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+    fetchReviews();
+  }, [product.id]);
+
+  const handleReviewChange = (e) => setReviewForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const submitReview = async (e) => {
+    e.preventDefault();
+    setSubmittingReview(true);
+    try {
+      const payload = {
+        productId: product.id,
+        rating: Number(reviewForm.rating),
+        title: reviewForm.title,
+        comment: reviewForm.comment,
+        ...(!user && { guestName: reviewForm.guestName })
+      };
+      const response = await api.post('/reviews', payload);
+      if (response.success) {
+        addToast('Review submitted successfully. It will be visible once approved.', 'success');
+        setShowReviewForm(false);
+        setReviewForm({ rating: 5, title: '', comment: '', guestName: '' });
+      } else {
+        addToast(response.error || 'Failed to submit review', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Error submitting review', 'error');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   return (
     <>
@@ -376,7 +386,7 @@ export const ProductDetailsPage = ({ slug }) => {
             <span><TicketPercent size={16} /> Coupon eligible</span>
           </div>
           <button
-            className="primary-action"
+            className="cta-button"
             type="button"
             onClick={() => {
               addItem(product);
@@ -392,6 +402,51 @@ export const ProductDetailsPage = ({ slug }) => {
           <IconCard key={title} icon={icon} title={title} description={description} meta={score} />
         ))}
       </section>
+
+      <section className="premium-section">
+        <div className="section-heading">
+          <span className="page-eyebrow">Customer Feedback</span>
+          <h2>Product Reviews.</h2>
+        </div>
+        <div className="glass-card" style={{ padding: '20px' }}>
+          {loadingReviews ? (
+            <p>Loading reviews...</p>
+          ) : reviews.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              {reviews.map(r => (
+                <div key={r._id || r.id} style={{ borderBottom: '1px solid var(--c-border)', paddingBottom: '15px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <strong>{r.title || `${r.rating} Stars`}</strong>
+                    <span style={{ color: 'var(--clr-gold)' }}>{'★'.repeat(r.rating)}{'☆'.repeat(5-r.rating)}</span>
+                  </div>
+                  <p style={{ margin: '5px 0', fontSize: '0.9rem' }}>{r.comment}</p>
+                  <small style={{ color: 'var(--c-text-muted)' }}>By {r.guestName} {r.user && '(Verified)'}</small>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="elegant-text">Be the first to review this product!</p>
+          )}
+          
+          <div style={{ marginTop: '20px' }}>
+             {!showReviewForm ? (
+               <button className="cta-button outline" onClick={() => setShowReviewForm(true)}>Write a review</button>
+             ) : (
+               <form onSubmit={submitReview} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
+                 {!user && <label>Name<input type="text" name="guestName" value={reviewForm.guestName} onChange={handleReviewChange} required /></label>}
+                 <label>Rating (1-5)<input type="number" name="rating" min="1" max="5" value={reviewForm.rating} onChange={handleReviewChange} required /></label>
+                 <label>Title<input type="text" name="title" value={reviewForm.title} onChange={handleReviewChange} maxLength={120} /></label>
+                 <label>Review<textarea name="comment" value={reviewForm.comment} onChange={handleReviewChange} required minLength={10} maxLength={1000} rows={3} style={{ width: '100%', padding: '10px', borderRadius: '4px', background: 'var(--c-bg-alt)', border: '1px solid var(--c-border)', color: 'var(--c-text)' }} /></label>
+                 <div style={{ display: 'flex', gap: '10px' }}>
+                   <button type="submit" className="cta-button" disabled={submittingReview}>{submittingReview ? 'Submitting...' : 'Submit'}</button>
+                   <button type="button" className="cta-button outline" onClick={() => setShowReviewForm(false)}>Cancel</button>
+                 </div>
+               </form>
+             )}
+          </div>
+        </div>
+      </section>
+
       <section className="premium-section">
         <div className="section-heading">
           <span className="page-eyebrow">Related Products</span>
@@ -403,57 +458,241 @@ export const ProductDetailsPage = ({ slug }) => {
   );
 };
 
-export const UserDashboardPage = () => (
-  <>
-    <PageHero eyebrow="User Dashboard" title="Your shopping command center." description="Track orders, rewards, saved items, recommendations, notifications, and account health from one responsive workspace." compact />
-    <MetricGrid metrics={dashboardMetrics} />
-    <section className="split-panel">
-      <TableShell />
-      <article className="premium-card">
-        <h3>Recommended next</h3>
-        <div className="mini-product-list">{products.slice(0, 3).map(product => <ProductMiniCard product={product} key={product.id} />)}</div>
-      </article>
-    </section>
-  </>
-);
+export const UserDashboardPage = () => {
+  const { user } = useAuth();
+  const [recentOrders, setRecentOrders] = React.useState([]);
 
-export const AdminDashboardPage = () => (
-  <>
-    <PageHero eyebrow="Admin Dashboard" title="Operate catalog, users, sales, and content from one place." description="A production admin shell for inventory, product management, reports, moderation, and platform health." compact />
-    <MetricGrid metrics={adminMetrics} />
-    <section className="split-panel">
-      <ChartCard title="Sales tracking" />
-      <article className="premium-card management-list">
-        <h3>Management Queue</h3>
-        {['Review low-stock products', 'Approve 12 pending reviews', 'Publish summer collection', 'Export weekly sales report'].map(item => (
-          <div key={item}><CheckCircle2 size={18} /><span>{item}</span><ChevronRight size={16} /></div>
-        ))}
-      </article>
-    </section>
-  </>
-);
+  React.useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await api.get('/orders/my');
+        if (response.success) {
+          setRecentOrders(response.data.slice(0, 3));
+        }
+      } catch (err) {
+        console.error('Failed to load recent orders for dashboard:', err);
+      }
+    };
+    if (user) fetchOrders();
+  }, [user]);
 
-export const AnalyticsPage = () => (
-  <>
-    <PageHero eyebrow="Analytics" title="Decision-ready commerce intelligence." description="Track revenue, conversion, traffic, inventory movement, customer retention, and sales performance." compact />
-    <MetricGrid metrics={adminMetrics} />
-    <ChartCard title="Weekly revenue index" />
-  </>
-);
+  return (
+    <>
+      <PageHero eyebrow="User Dashboard" title={`Welcome back, ${user?.name || 'Shopper'}.`} description="Track orders, rewards, saved items, recommendations, notifications, and account health from one responsive workspace." compact />
+      <MetricGrid metrics={dashboardMetrics} />
+      <section className="split-panel">
+        <TableShell rows={recentOrders.length > 0 ? recentOrders.map(o => ({
+          id: o._id.slice(-6).toUpperCase(),
+          product: o.items.length === 1 ? o.items[0].name : `${o.items[0].name} + ${o.items.length - 1} more`,
+          status: o.status || o.timeline?.[o.timeline.length - 1]?.status || 'pending',
+          date: new Date(o.createdAt).toLocaleDateString(),
+          amount: formatPrice(o.total)
+        })) : []} title="Recent Orders" />
+        <article className="premium-card">
+          <h3>Recommended next</h3>
+          <div className="mini-product-list">{products.slice(0, 3).map(product => <ProductMiniCard product={product} key={product.id} />)}</div>
+        </article>
+      </section>
+    </>
+  );
+};
 
-export const OrdersPage = () => (
-  <>
-    <PageHero eyebrow="Orders" title="Order history and fulfillment tracking." description="Review order status, delivery progress, invoices, returns, and support handoffs." compact />
-    <TableShell title="Order tracking" />
-  </>
-);
+export const AdminDashboardPage = () => {
+  const [data, setData] = React.useState({ orders: [], users: [] });
+  const [loading, setLoading] = React.useState(true);
+  const { addToast } = useToast();
 
-export const WishlistPage = () => (
-  <>
-    <PageHero eyebrow="Wishlist" title="Saved products and price-drop alerts." description="A personalized saved catalog with fast checkout entry points and notification-ready price monitoring." compact />
-    <div className="mini-product-grid">{products.slice(2, 6).map(product => <ProductMiniCard product={product} key={product.id} actionLabel="Move to cart" />)}</div>
-  </>
-);
+  React.useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [ordersRes, usersRes] = await Promise.all([
+          api.get('/orders/admin?limit=5'),
+          api.get('/users/admin?limit=5')
+        ]);
+        setData({
+          orders: ordersRes.success ? ordersRes.data : [],
+          users: usersRes.success ? usersRes.data : []
+        });
+      } catch (err) {
+        addToast(err.error || 'Failed to load admin data', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [addToast]);
+
+  return (
+    <>
+      <PageHero eyebrow="Admin Dashboard" title="Operate catalog, users, sales, and content from one place." description="A production admin shell for inventory, product management, reports, moderation, and platform health." compact />
+      <MetricGrid metrics={adminMetrics} />
+      <section className="split-panel">
+        <TableShell title="Recent System Orders" rows={data.orders.map(o => ({
+          id: o._id.slice(-6).toUpperCase(),
+          user: o.user?.name || o.guestEmail || 'Unknown',
+          status: o.status,
+          date: new Date(o.createdAt).toLocaleDateString(),
+          amount: formatPrice(o.total)
+        }))} />
+        <article className="premium-card management-list">
+          <h3>Recent Users</h3>
+          {data.users.length === 0 && !loading && <p>No users found.</p>}
+          {loading ? <p>Loading...</p> : data.users.map(u => (
+            <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--c-border)' }}>
+              <span>{u.name} ({u.role})</span>
+              <span className="status-pill">{u.isActive ? 'Active' : 'Disabled'}</span>
+            </div>
+          ))}
+        </article>
+      </section>
+    </>
+  );
+};
+
+export const AnalyticsPage = () => {
+  const [data, setData] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const { addToast } = useToast();
+
+  React.useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        const response = await api.get('/analytics/summary');
+        if (response.success) setData(response.data);
+      } catch (err) {
+        addToast(err.error || 'Failed to load analytics', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAnalytics();
+  }, [addToast]);
+
+  const metrics = data ? [
+    { label: 'Total Revenue', value: formatPrice(data.revenue), trend: '+12.5%' },
+    { label: 'Total Orders', value: data.orders.toLocaleString(), trend: '+8.2%' },
+    { label: 'Active Users', value: data.users.toLocaleString(), trend: '+15.3%' },
+    { label: 'Conversion Rate', value: `${data.conversionRate}%`, trend: '+1.1%' }
+  ] : adminMetrics;
+
+  return (
+    <>
+      <PageHero eyebrow="Analytics" title="Decision-ready commerce intelligence." description="Track revenue, conversion, traffic, inventory movement, customer retention, and sales performance." compact />
+      {loading ? (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>Loading intelligence data...</div>
+      ) : (
+        <>
+          <MetricGrid metrics={metrics} />
+          <ChartCard title="Weekly revenue index" />
+        </>
+      )}
+    </>
+  );
+};
+
+export const OrdersPage = () => {
+  const [orders, setOrders] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const { addToast } = useToast();
+
+  React.useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const response = await api.get('/orders/my');
+        if (response.success) {
+          setOrders(response.data);
+        }
+      } catch (err) {
+        addToast(err.error || 'Failed to load orders', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchOrders();
+  }, [addToast]);
+
+  return (
+    <>
+      <PageHero eyebrow="Orders" title="Order history and fulfillment tracking." description="Review order status, delivery progress, invoices, returns, and support handoffs." compact />
+      {loading ? (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>Loading orders...</div>
+      ) : (
+        <TableShell rows={orders.length > 0 ? orders.map(o => ({
+          id: o._id.slice(-6).toUpperCase(),
+          product: o.items.length === 1 ? o.items[0].name : `${o.items[0].name} + ${o.items.length - 1} more`,
+          status: o.status || o.timeline?.[o.timeline.length - 1]?.status || 'pending',
+          date: new Date(o.createdAt).toLocaleDateString(),
+          amount: formatPrice(o.total)
+        })) : []} title="Your orders" />
+      )}
+    </>
+  );
+};
+
+export const WishlistPage = () => {
+  const { user } = useAuth();
+  const { addToast } = useToast();
+  const { addItem } = useCart();
+  const [wishlist, setWishlist] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchWishlist = async () => {
+      try {
+        const response = await api.get('/users/profile');
+        if (response.success && response.data.wishlist) {
+          setWishlist(response.data.wishlist);
+        }
+      } catch (err) {
+        addToast(err.error || 'Failed to load wishlist', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (user) {
+      fetchWishlist();
+    } else {
+      setLoading(false);
+    }
+  }, [user, addToast]);
+
+  const handleMoveToCart = async (product) => {
+    addItem(product);
+    addToast(`Added ${product.name} to cart`, 'success');
+    
+    // Attempt to remove from wishlist via API
+    try {
+      const response = await api.delete(`/users/wishlist/${product._id || product.id}`);
+      if (response.success) {
+        setWishlist(response.data);
+      }
+    } catch (err) {
+      console.warn('Could not remove item from wishlist:', err);
+    }
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="Wishlist" title="Saved products and price-drop alerts." description="A personalized saved catalog with fast checkout entry points and notification-ready price monitoring." compact />
+      {loading ? (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>Loading wishlist...</div>
+      ) : wishlist.length === 0 ? (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>Your wishlist is empty.</div>
+      ) : (
+        <div className="mini-product-grid">
+          {wishlist.map(product => (
+            <ProductMiniCard 
+              product={product} 
+              key={product._id || product.id} 
+              actionLabel="Move to cart"
+              onAction={handleMoveToCart}
+            />
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
 
 export const CartPage = () => {
   const { items, updateQuantity, removeItem, totalPrice } = useCart();
@@ -487,35 +726,181 @@ export const CartPage = () => {
 };
 
 export const CheckoutPage = () => {
-  const { totalPrice } = useCart();
+  const { items, totalPrice, clearCart } = useCart();
+  const { user } = useAuth();
+  const { addToast } = useToast();
+  
+  const [formData, setFormData] = React.useState({
+    name: user?.name || '',
+    email: user?.email || '',
+    line1: '',
+    city: '',
+    state: '',
+    zip: '',
+    coupon: ''
+  });
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [validatingCoupon, setValidatingCoupon] = React.useState(false);
+  const [discount, setDiscount] = React.useState(0);
+
+  const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const applyCoupon = async () => {
+    if (!formData.coupon) return;
+    setValidatingCoupon(true);
+    try {
+      const res = await api.post('/coupons/validate', { code: formData.coupon, subtotal: totalPrice });
+      if (res.success) {
+        setDiscount(res.data.discount);
+        addToast(`Coupon applied: -${formatPrice(res.data.discount)}`, 'success');
+      } else {
+        setDiscount(0);
+        addToast(res.error || 'Invalid coupon', 'error');
+      }
+    } catch (err) {
+       setDiscount(0);
+       addToast(err.error || 'Failed to validate coupon', 'error');
+    } finally {
+       setValidatingCoupon(false);
+    }
+  };
+
+  const handleCheckout = async (e) => {
+    e.preventDefault();
+    if (items.length === 0) {
+      addToast('Your cart is empty', 'error');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    const payload = {
+      guestEmail: !user ? formData.email : undefined,
+      couponCode: discount > 0 ? formData.coupon : undefined,
+      shippingAddress: {
+        name: formData.name,
+        line1: formData.line1,
+        city: formData.city,
+        state: formData.state,
+        zip: formData.zip,
+      },
+      items: items.map(item => ({
+        productId: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        image: item.image
+      }))
+    };
+
+    try {
+      await new Promise(r => setTimeout(r, 1200));
+      const response = await api.post('/orders', payload);
+      if (response.success) {
+        addToast('Order confirmed! Check your email for details.', 'success');
+        clearCart();
+        window.location.hash = ROUTES.ORDERS;
+      } else {
+        addToast(response.error || 'Checkout failed', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || err.message || 'Payment processing failed', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const subtotalAfterDiscount = Math.max(0, totalPrice - discount);
+  const tax = subtotalAfterDiscount * 0.08;
+  const finalTotal = subtotalAfterDiscount + tax;
+
   return (
     <>
       <PageHero eyebrow="Checkout" title="Secure, payment-ready checkout." description="Shipping, coupon, payment authorization, and review steps are organized for a fast production checkout flow." compact />
       <section className="checkout-grid">
-        <form className="premium-card form-grid">
-          <label>Full name<input type="text" placeholder="Sarthak Mathapati" /></label>
-          <label>Email<input type="email" placeholder="you@mythicmart.com" /></label>
-          <label>Address<input type="text" placeholder="Street address" /></label>
-          <label>Coupon<input type="text" placeholder="MYTHIC10" /></label>
-          <button className="primary-action" type="button">Validate and pay <CreditCard size={18} /></button>
+        <form className="glass-card form-grid" onSubmit={handleCheckout}>
+          <label>Full name<input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Sarthak Mathapati" required /></label>
+          <label>Email<input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="you@mythicmart.com" required /></label>
+          <label>Address<input type="text" name="line1" value={formData.line1} onChange={handleChange} placeholder="Street address" required /></label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+            <label>City<input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="City" required /></label>
+            <label>State<input type="text" name="state" value={formData.state} onChange={handleChange} placeholder="State" required /></label>
+            <label>Zip<input type="text" name="zip" value={formData.zip} onChange={handleChange} placeholder="Zip" required /></label>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
+             <label style={{ flex: 1 }}>Coupon<input type="text" name="coupon" value={formData.coupon} onChange={handleChange} placeholder="MYTHIC10" /></label>
+             <button type="button" className="cta-button outline" onClick={applyCoupon} disabled={validatingCoupon || !formData.coupon}>
+               {validatingCoupon ? '...' : 'Apply'}
+             </button>
+          </div>
+          <button className="cta-button" type="submit" disabled={isSubmitting || items.length === 0} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            {isSubmitting ? 'Processing Payment...' : <>Validate and pay <CreditCard size={18} /></>}
+          </button>
         </form>
-        <article className="premium-card checkout-summary">
+        <article className="glass-card checkout-summary">
           <h3>Payment Review</h3>
           <div><span>Subtotal</span><strong>{formatPrice(totalPrice)}</strong></div>
+          {discount > 0 && <div><span>Discount</span><strong style={{ color: 'var(--c-accent)' }}>-{formatPrice(discount)}</strong></div>}
           <div><span>Shipping</span><strong>Free</strong></div>
-          <div><span>Total</span><strong>{formatPrice(totalPrice * 1.08)}</strong></div>
+          <div><span>Estimated Tax</span><strong>{formatPrice(tax)}</strong></div>
+          <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: '1rem', marginTop: '1rem' }}>
+            <span>Total</span><strong>{formatPrice(finalTotal)}</strong>
+          </div>
         </article>
       </section>
     </>
   );
 };
 
-export const ProfilePage = () => (
-  <>
-    <PageHero eyebrow="Profile" title="Account identity and preferences." description="Manage personal details, saved addresses, rewards profile, and secure account metadata." compact />
-    <form className="premium-card form-grid"><label>Name<input defaultValue="Guest User" /></label><label>Email<input defaultValue="guest@mythicmart.com" /></label><label>Phone<input placeholder="+91 98765 43210" /></label><button className="primary-action" type="button">Save profile</button></form>
-  </>
-);
+export const ProfilePage = () => {
+  const { user } = useAuth();
+  const { addToast } = useToast();
+  const [formData, setFormData] = React.useState({
+    name: user?.name || '',
+    avatar: user?.avatar || ''
+  });
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      setFormData({ name: user.name || '', avatar: user.avatar || '' });
+    }
+  }, [user]);
+
+  const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const response = await api.patch('/users/profile', formData);
+      if (response.success) {
+        addToast('Profile updated successfully', 'success');
+        // A robust solution would also update the AuthContext user state here
+      } else {
+        addToast(response.error || 'Failed to update profile', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to update profile', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="Profile" title="Account identity and preferences." description="Manage personal details, saved addresses, rewards profile, and secure account metadata." compact />
+      <form className="glass-card form-grid" onSubmit={handleSave}>
+        <label>Name<input type="text" name="name" value={formData.name} onChange={handleChange} required minLength={2} maxLength={60} /></label>
+        <label>Email<input type="email" value={user?.email || ''} disabled style={{ opacity: 0.7, cursor: 'not-allowed' }} title="Email cannot be changed" /></label>
+        <label>Avatar URL<input type="url" name="avatar" value={formData.avatar} onChange={handleChange} placeholder="https://example.com/avatar.jpg" /></label>
+        <button className="cta-button" type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Saving...' : 'Save profile'}
+        </button>
+      </form>
+    </>
+  );
+};
 
 export const SettingsPage = () => (
   <>
@@ -531,12 +916,52 @@ export const NotificationsPage = () => (
   </>
 );
 
-export const ContactPage = () => (
-  <>
-    <PageHero eyebrow="Contact" title="Reach the MythicMart team." description="Sales, support, partnerships, and customer care are routed through a production-ready contact workflow." compact />
-    <section className="split-panel"><form className="premium-card form-grid"><label>Name<input /></label><label>Email<input type="email" /></label><label>Message<textarea rows="5" /></label><button className="primary-action" type="button">Send message <Mail size={18} /></button></form><IconCard icon={MapPin} title="Commerce HQ" description="Remote-first support with regional fulfillment partners and 24/7 escalation paths." /></section>
-  </>
-);
+export const ContactPage = () => {
+  const { addToast } = useToast();
+  const [formData, setFormData] = React.useState({ name: '', email: '', message: '' });
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await api.post('/support', {
+        email: formData.email,
+        subject: `Contact from ${formData.name}`,
+        message: formData.message,
+        type: 'other',
+        priority: 'normal'
+      });
+      if (res.success) {
+        addToast('Message sent! We will get back to you soon.', 'success');
+        setFormData({ name: '', email: '', message: '' });
+      } else {
+        addToast(res.error || 'Failed to send message', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to send message', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="Contact" title="Reach the MythicMart team." description="Sales, support, partnerships, and customer care are routed through a production-ready contact workflow." compact />
+      <section className="split-panel">
+        <form className="premium-card form-grid" onSubmit={handleSubmit}>
+          <label>Name<input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required /></label>
+          <label>Email<input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required /></label>
+          <label>Message<textarea rows="5" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} required minLength={10} /></label>
+          <button className="primary-action" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Sending...' : <>Send message <Mail size={18} /></>}
+          </button>
+        </form>
+        <IconCard icon={MapPin} title="Commerce HQ" description="Remote-first support with regional fulfillment partners and 24/7 escalation paths." />
+      </section>
+    </>
+  );
+};
 
 export const FAQPage = () => (
   <>
@@ -591,12 +1016,63 @@ export const HelpCenterPage = () => (
   </>
 );
 
-export const SupportSystemPage = () => (
-  <>
-    <PageHero eyebrow="Support System" title="Ticketing, routing, and customer care workflows." description="A complete support surface for escalations, order issues, refunds, technical help, and priority routing." compact />
-    <section className="split-panel"><form className="premium-card form-grid"><label>Issue type<select><option>Order issue</option><option>Payment support</option><option>Account security</option></select></label><label>Priority<select><option>Standard</option><option>High</option><option>Urgent</option></select></label><label>Description<textarea rows="5" /></label><button className="primary-action" type="button">Create ticket <ArrowRight size={18} /></button></form><IconCard icon={Headphones} title="SLA Routing" description="Tickets can be routed by role, severity, order value, and customer tier." /></section>
-  </>
-);
+export const SupportSystemPage = () => {
+  const { addToast } = useToast();
+  const { user } = useAuth();
+  const [formData, setFormData] = React.useState({ email: user?.email || '', subject: 'Support Ticket', type: 'order', priority: 'normal', message: '' });
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await api.post('/support', formData);
+      if (res.success) {
+        addToast('Support ticket created successfully!', 'success');
+        setFormData(prev => ({ ...prev, message: '' }));
+      } else {
+        addToast(res.error || 'Failed to create ticket', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to create ticket', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="Support System" title="Ticketing, routing, and customer care workflows." description="A complete support surface for escalations, order issues, refunds, technical help, and priority routing." compact />
+      <section className="split-panel">
+        <form className="premium-card form-grid" onSubmit={handleSubmit}>
+          {!user && <label>Email<input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required /></label>}
+          <label>Issue type
+            <select value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })}>
+              <option value="order">Order issue</option>
+              <option value="payment">Payment support</option>
+              <option value="account">Account security</option>
+              <option value="technical">Technical</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label>Priority
+            <select value={formData.priority} onChange={e => setFormData({ ...formData, priority: e.target.value })}>
+              <option value="low">Low</option>
+              <option value="normal">Standard</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </label>
+          <label>Description<textarea rows="5" value={formData.message} onChange={e => setFormData({ ...formData, message: e.target.value })} required minLength={10} /></label>
+          <button className="primary-action" type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating...' : <>Create ticket <ArrowRight size={18} /></>}
+          </button>
+        </form>
+        <IconCard icon={Headphones} title="SLA Routing" description="Tickets can be routed by role, severity, order value, and customer tier." />
+      </section>
+    </>
+  );
+};
 
 export const LoginPage = () => <AuthPanel mode="login" />;
 export const SignupPage = () => <AuthPanel mode="signup" />;

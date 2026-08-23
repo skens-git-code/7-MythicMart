@@ -1,6 +1,6 @@
 import React from 'react';
-import { CATEGORIES } from '../../utils/constants';
-import '../../styles/CategoryFilter.css';
+import { CATEGORIES } from '../../../utils/constants';
+import '../../../styles/CategoryFilter.css';
 
 const CategoryFilter = ({ activeCategory, onCategoryChange }) => {
   return (

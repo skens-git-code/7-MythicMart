@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import { body, param, query, validationResult } from 'express-validator';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
+import Coupon from '../models/Coupon.js';
 import { asyncHandler, sendSuccess, sendError } from '../utils/apiResponse.js';
 import { authorize, protect, optionalAuth } from '../middleware/auth.js';
 import { requireDatabase } from '../middleware/requireDatabase.js';
@@ -30,6 +31,7 @@ router.post(
     body('items.*.price').isFloat({ min: 0 }).withMessage('Item price must be a positive number'),
     body('items.*.quantity').isInt({ min: 1, max: 99 }).withMessage('Item quantity must be between 1 and 99'),
     body('items.*.image').trim().notEmpty().withMessage('Item image is required').isLength({ max: 300 }),
+    body('couponCode').optional({ nullable: true }).trim().isLength({ max: 32 }),
     body('guestEmail').if((value, { req }) => !req.user).isEmail().withMessage('Guest email is required').normalizeEmail(),
     body('shippingAddress.name').optional().trim().isLength({ max: 80 }),
     body('shippingAddress.line1').optional().trim().isLength({ max: 120 }),
@@ -41,7 +43,7 @@ router.post(
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendError(res, errors.array()[0].msg, 422);
 
-    const { items, shippingAddress, guestEmail } = req.body;
+    const { items, shippingAddress, guestEmail, couponCode } = req.body;
     const productIds = items
       .map(item => item.productId)
       .filter(id => mongoose.Types.ObjectId.isValid(id));
@@ -85,14 +87,29 @@ router.post(
     });
 
     const subtotal = normalizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const tax = parseFloat((subtotal * TAX_RATE).toFixed(2));
-    const total = parseFloat((subtotal + tax).toFixed(2));
+    
+    let discountAmount = 0;
+    if (couponCode) {
+       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), active: true });
+       if (coupon && (!coupon.expiresAt || coupon.expiresAt > new Date()) && (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit) && subtotal >= coupon.minSubtotal) {
+          discountAmount = coupon.calculateDiscount(subtotal);
+          coupon.usedCount += 1;
+          await coupon.save();
+       } else if (couponCode.toUpperCase() === 'MYTHIC10') {
+          // Fallback static discount
+          discountAmount = Number(Math.min(subtotal * 0.1, 50).toFixed(2));
+       }
+    }
+
+    const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
+    const tax = parseFloat((subtotalAfterDiscount * TAX_RATE).toFixed(2));
+    const total = parseFloat((subtotalAfterDiscount + tax).toFixed(2));
 
     const order = await Order.create({
       user: req.user?._id || null,
       guestEmail: req.user ? null : guestEmail,
       items: normalizedItems,
-      subtotal: parseFloat(subtotal.toFixed(2)),
+      subtotal: parseFloat(subtotalAfterDiscount.toFixed(2)),
       tax,
       total,
       shippingAddress,

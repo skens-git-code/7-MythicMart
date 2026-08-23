@@ -11,9 +11,20 @@ export const useProducts = (category = 'all', sort = 'newest', search = '') => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 400); // 400ms debounce
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [search]);
 
   const fetchProducts = useCallback(async () => {
-    const cacheKey = JSON.stringify({ category, sort, search });
+    const cacheKey = JSON.stringify({ category, sort, search: debouncedSearch });
     const cached = productCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       setProducts(cached.products);
@@ -28,7 +39,7 @@ export const useProducts = (category = 'all', sort = 'newest', search = '') => {
       const params = new URLSearchParams();
       if (category !== 'all') params.append('category', category);
       if (sort) params.append('sort', sort);
-      if (search) params.append('search', search);
+      if (debouncedSearch) params.append('search', debouncedSearch);
 
       const response = await api.get(`/products?${params.toString()}`);
       
@@ -41,8 +52,8 @@ export const useProducts = (category = 'all', sort = 'newest', search = '') => {
       if (category !== 'all') {
         filtered = filtered.filter(p => p.category === category);
       }
-      if (search) {
-        const q = search.toLowerCase();
+      if (debouncedSearch) {
+        const q = debouncedSearch.toLowerCase();
         filtered = filtered.filter(p => 
           p.name.toLowerCase().includes(q) || 
           p.description.toLowerCase().includes(q)
@@ -54,7 +65,7 @@ export const useProducts = (category = 'all', sort = 'newest', search = '') => {
     } finally {
       setLoading(false);
     }
-  }, [category, sort, search]);
+  }, [category, sort, debouncedSearch]);
 
   useEffect(() => {
     fetchProducts();

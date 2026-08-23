@@ -5,7 +5,8 @@ import { ThemeProvider } from './context/ThemeContext';
 import { CartProvider } from './context/CartContext';
 import { UIProvider } from './context/UIContext';
 import { ToastProvider } from './context/ToastContext';
-import ErrorBoundary from './components/ui/ErrorBoundary';
+import { AuthProvider } from './context/AuthContext';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import './styles/index.css';
 
 /* App entry — wraps App with ErrorBoundary and Context Providers */
@@ -15,13 +16,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       <a className="skip-link" href="#main-content">Skip to content</a>
       <ThemeProvider>
-        <CartProvider>
-          <UIProvider>
-            <ToastProvider>
-              <App />
-            </ToastProvider>
-          </UIProvider>
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <UIProvider>
+              <ToastProvider>
+                <App />
+              </ToastProvider>
+            </UIProvider>
+          </CartProvider>
+        </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>
   </React.StrictMode>,
