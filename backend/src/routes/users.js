@@ -66,7 +66,7 @@ router.patch(
     const updates = { role: req.body.role };
     if (Array.isArray(req.body.permissions)) updates.permissions = req.body.permissions;
 
-    const user = await User.findByIdAndUpdate(req.params.id, updates, { new: true })
+    const user = await User.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' })
       .select('name email role permissions loyaltyTier isActive emailVerified')
       .lean();
     if (!user) return sendError(res, 'User not found', 404);
@@ -87,7 +87,7 @@ router.patch(
     const user = await User.findByIdAndUpdate(
       req.params.id,
       { isActive: req.body.isActive },
-      { new: true }
+      { returnDocument: 'after' }
     )
       .select('name email role isActive')
       .lean();
@@ -114,7 +114,7 @@ router.patch(
     if (req.body.name) updates.name = req.body.name;
     if (Object.prototype.hasOwnProperty.call(req.body, 'avatar')) updates.avatar = req.body.avatar || null;
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { new: true });
+    const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });
     sendSuccess(res, user);
   })
 );
@@ -130,7 +130,7 @@ router.post(
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $addToSet: { wishlist: product._id } },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('wishlist', 'name slug price image category rating');
 
     sendSuccess(res, user.wishlist);
@@ -145,7 +145,7 @@ router.delete(
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { $pull: { wishlist: new mongoose.Types.ObjectId(req.params.productId) } },
-      { new: true }
+      { returnDocument: 'after' }
     ).populate('wishlist', 'name slug price image category rating');
 
     sendSuccess(res, user.wishlist);

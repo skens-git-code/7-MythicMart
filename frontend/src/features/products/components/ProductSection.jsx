@@ -3,11 +3,13 @@ import { ArrowUpRight, Check, Heart, ShoppingBag, SlidersHorizontal, Sparkles, S
 import { useCart } from '../../../hooks/useCart';
 import { useToast } from '../../../context/ToastContext';
 import { useUI } from '../../../context/UIContext';
+import { useAuth } from '../../../context/AuthContext';
 import { useProducts } from '../../../hooks/useProducts';
+import { api } from '../../../services/api';
 import CategoryFilter from './CategoryFilter';
 import { formatPrice } from '../../../utils/formatters';
 import { toHashPath } from '../../../utils/routes';
-import '../../../styles/ProductSection.css'; // Keeping for specific layout styles if needed
+import '../../../styles/ProductSection.css';
 
 const sortOptions = [
   { value: 'newest', label: 'Newest' },
@@ -30,6 +32,7 @@ const ProductSkeleton = () => (
 const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow = 'Live catalog' }) => {
   const { addItem } = useCart();
   const { addToast } = useToast();
+  const { user } = useAuth();
   const { searchQuery, clearSearch } = useUI();
   const [activeCategory, setActiveCategory] = useState('all');
   const [sort, setSort] = useState('newest');
@@ -42,9 +45,16 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
     addToast(`Added ${product.name} to cart`, 'success');
   }, [addItem, addToast]);
 
-  const handleWishlist = useCallback((product) => {
+  const handleWishlist = useCallback(async (product) => {
+    if (user && product._id) {
+      try {
+        await api.post(`/users/wishlist/${product._id}`);
+      } catch (err) {
+        console.warn('Wishlist sync warning:', err);
+      }
+    }
     addToast(`${product.name} saved to wishlist`, 'success');
-  }, [addToast]);
+  }, [user, addToast]);
 
   return (
     <section id="products" className="section-transition" aria-label="Product catalog">

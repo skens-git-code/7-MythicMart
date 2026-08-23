@@ -40,7 +40,8 @@ export const toHashPath = (path = ROUTES.HOME) => {
 export const normalizeRoute = (hash = window.location.hash) => {
   const route = hash.replace(/^#/, '') || ROUTES.HOME;
   const cleaned = route.split('?')[0].replace(/\/+$/, '');
-  return cleaned || ROUTES.HOME;
+  if (!cleaned) return ROUTES.HOME;
+  return cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
 };
 
 export const pageTitleFromRoute = (route) => {

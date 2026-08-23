@@ -3,6 +3,7 @@ import { Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { useCart } from '../../../context/CartContext';
 import { useUI } from '../../../context/UIContext';
 import { formatPrice } from '../../../utils/formatters';
+import { ROUTES, toHashPath } from '../../../utils/routes';
 import Modal from '../../../components/common/Modal';
 import '../../../styles/CartDrawer.css';
 
@@ -10,12 +11,35 @@ const CartDrawer = () => {
   const { isCartOpen, closeCart } = useUI();
   const { items, updateQuantity, removeItem, totalPrice, totalCount } = useCart();
 
-  return (
-    <Modal isOpen={isCartOpen} onClose={closeCart} title={
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text)' }}>
-        Your Cart <span className="cart-count-badge" style={{ background: 'var(--clr-primary)', color: '#000', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' }}>{totalCount}</span>
+  const handleCheckoutClick = () => {
+    closeCart();
+    window.location.hash = toHashPath(ROUTES.CHECKOUT);
+  };
+
+  const cartFooter = items.length > 0 ? (
+    <div>
+      <div className="cart-subtotal" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', marginBottom: '10px', color: 'var(--text)' }}>
+        <span>Subtotal</span>
+        <strong>{formatPrice(totalPrice)}</strong>
       </div>
-    }>
+      <p className="tax-shipping-note" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '15px', textAlign: 'center' }}>Taxes and shipping calculated at checkout</p>
+      <button className="cta-button" style={{ width: '100%' }} onClick={handleCheckoutClick}>
+        Checkout <ArrowRight size={18} />
+      </button>
+    </div>
+  ) : null;
+
+  return (
+    <Modal
+      isOpen={isCartOpen}
+      onClose={closeCart}
+      title={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text)' }}>
+          Your Cart <span className="cart-count-badge" style={{ background: 'var(--clr-primary)', color: '#000', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' }}>{totalCount}</span>
+        </div>
+      }
+      footer={cartFooter}
+    >
       <div className="cart-body">
         {items.length === 0 ? (
           <div className="cart-empty" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)' }}>
@@ -33,8 +57,8 @@ const CartDrawer = () => {
                 <div className="cart-item-info" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div className="cart-item-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <h3 style={{ fontSize: '0.95rem', margin: 0, color: 'var(--text)' }}>{item.name}</h3>
-                    <button 
-                      className="item-remove-btn" 
+                    <button
+                      className="item-remove-btn"
                       onClick={() => removeItem(item.id)}
                       aria-label={`Remove ${item.name}`}
                       style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', padding: '5px' }}
@@ -44,13 +68,13 @@ const CartDrawer = () => {
                   </div>
                   <div className="cart-item-bottom" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
                     <div className="qty-controls" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '20px', padding: '2px 10px' }}>
-                      <button 
+                      <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
                         aria-label="Decrease quantity"
                         style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }}
                       >-</button>
                       <span style={{ fontSize: '0.9rem', color: 'var(--text)' }}>{item.quantity}</span>
-                      <button 
+                      <button
                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
                         aria-label="Increase quantity"
                         style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }}
@@ -64,19 +88,6 @@ const CartDrawer = () => {
           </ul>
         )}
       </div>
-
-      {items.length > 0 && (
-        <div className="cart-footer" style={{ borderTop: '1px solid var(--c-border)', paddingTop: '20px', marginTop: '20px' }}>
-          <div className="cart-subtotal" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', marginBottom: '10px', color: 'var(--text)' }}>
-            <span>Subtotal</span>
-            <strong>{formatPrice(totalPrice)}</strong>
-          </div>
-          <p className="tax-shipping-note" style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '20px', textAlign: 'center' }}>Taxes and shipping calculated at checkout</p>
-          <button className="cta-button" style={{ width: '100%' }}>
-            Checkout <ArrowRight size={18} />
-          </button>
-        </div>
-      )}
     </Modal>
   );
 };

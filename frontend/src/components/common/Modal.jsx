@@ -1,16 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import '../../styles/Modal.css';
 
-const Modal = ({ isOpen, onClose, title, children, className = '' }) => {
+const Modal = ({ isOpen, onClose, title, children, footer, className = '' }) => {
   const dialogRef = useRef(null);
 
   useEffect(() => {
     const dialogNode = dialogRef.current;
+    if (!dialogNode) return;
     if (isOpen) {
-      dialogNode.showModal();
+      if (!dialogNode.open) dialogNode.showModal();
+      // Prevent body scroll while modal is open
+      document.body.style.overflow = 'hidden';
     } else {
-      dialogNode.close();
+      if (dialogNode.open) dialogNode.close();
+      document.body.style.overflow = '';
     }
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
 
   const handleBackdropClick = (e) => {
@@ -36,6 +43,11 @@ const Modal = ({ isOpen, onClose, title, children, className = '' }) => {
         <div className="modal-body">
           {children}
         </div>
+        {footer && (
+          <div className="modal-footer">
+            {footer}
+          </div>
+        )}
       </div>
     </dialog>
   );

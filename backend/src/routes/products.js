@@ -212,7 +212,7 @@ router.get('/trending', recommendationRules, validate, asyncHandler(async (req, 
 /* GET /api/products/:id — single product by MongoDB id or slug */
 router.get('/:id', idRules, validate, asyncHandler(async (req, res) => {
   if (!isDbConnected()) {
-    const product = STATIC_PRODUCTS.find(p => String(p.id) === req.params.id);
+    const product = STATIC_PRODUCTS.find(p => String(p.id) === req.params.id || p.slug === req.params.id);
     if (!product) return sendError(res, 'Product not found', 404);
     return sendSuccess(res, product);
   }

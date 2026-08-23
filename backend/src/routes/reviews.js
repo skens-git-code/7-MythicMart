@@ -22,7 +22,7 @@ const validate = (req, res, next) => {
 router.get(
   '/',
   [
-    query('productId').optional().isMongoId().withMessage('Invalid product id'),
+    query('productId').optional().trim().isLength({ max: 80 }).withMessage('Invalid product id'),
     query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('Limit must be between 1 and 50').toInt(),
   ],
   validate,
@@ -31,7 +31,9 @@ router.get(
 
     const { productId, limit = 20 } = req.query;
     const filter = { status: 'approved' };
-    if (productId) filter.product = productId;
+    if (productId && mongoose.Types.ObjectId.isValid(productId)) {
+      filter.product = productId;
+    }
 
     const reviews = await Review.find(filter)
       .sort({ createdAt: -1 })
@@ -77,7 +79,7 @@ router.patch(
   [body('status').isIn(['pending', 'approved', 'rejected']).withMessage('Invalid review status')],
   validate,
   asyncHandler(async (req, res) => {
-    const review = await Review.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
+    const review = await Review.findByIdAndUpdate(req.params.id, { status: req.body.status }, { returnDocument: 'after' });
     if (!review) return sendError(res, 'Review not found', 404);
     sendSuccess(res, review);
   })

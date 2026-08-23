@@ -102,11 +102,10 @@ userSchema.index({ loyaltyTier: 1, createdAt: -1 });
 userSchema.index({ createdAt: -1 });
 
 /* Hash password before saving */
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
   this.password = await bcrypt.hash(this.password, 12);
   if (!this.isNew) this.passwordChangedAt = new Date();
-  next();
 });
 
 /* Compare plain password against stored hash */

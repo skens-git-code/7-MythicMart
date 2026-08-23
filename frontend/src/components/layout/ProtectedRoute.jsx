@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES, toHashPath } from '../../utils/routes';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      window.location.hash = toHashPath(ROUTES.LOGIN);
+    }
+  }, [loading, isAuthenticated]);
 
   if (loading) {
     return (
@@ -15,7 +21,6 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!isAuthenticated) {
-    window.location.hash = ROUTES.LOGIN;
     return null;
   }
 

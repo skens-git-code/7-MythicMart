@@ -9,7 +9,7 @@
     "start": "node src/server.js",
     "seed": "node src/scripts/seed.js",
     "sync-indexes": "node src/scripts/syncIndexes.js",
-    "test": "node --test src/__tests__/health.test.js"
+    "test": "node --test src/__tests__/*.test.js"
   },
   "keywords": [],
   "author": "",

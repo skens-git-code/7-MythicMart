@@ -205,7 +205,7 @@ router.patch(
       };
     }
 
-    const order = await Order.findByIdAndUpdate(req.params.id, updates, { new: true }).lean();
+    const order = await Order.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' }).lean();
     if (!order) return sendError(res, 'Order not found', 404);
 
     sendSuccess(res, order);

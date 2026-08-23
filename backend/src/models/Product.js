@@ -13,7 +13,6 @@ const productSchema = new mongoose.Schema(
       type: String,
       uppercase: true,
       trim: true,
-      sparse: true,
     },
     brand: {
       type: String,
@@ -164,14 +163,13 @@ productSchema.index({ category: 1, isActive: 1, aiScore: -1 });
 productSchema.index({ stock: 1, reorderPoint: 1, isActive: 1 });
 
 /* Auto-generate slug from name before saving */
-productSchema.pre('save', function (next) {
+productSchema.pre('save', function () {
   if (this.isModified('name') || !this.slug) {
     this.slug = this.name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
   }
-  next();
 });
 
 const Product = mongoose.model('Product', productSchema);

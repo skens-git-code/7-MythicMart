@@ -32,7 +32,6 @@ import products from '../data/products';
 import {
   adminMetrics,
   analyticsSeries,
-  authBenefits,
   blogPosts,
   careers,
   categoryShowcase,
@@ -305,19 +304,43 @@ export const ProductDetailsPage = ({ slug }) => {
   const { addItem } = useCart();
   const { addToast } = useToast();
   const { user } = useAuth();
-  const product = products.find(item => item.slug === slug || String(item.id) === slug) || products[0];
-  const related = products.filter(item => item.category === product.category && item.id !== product.id).slice(0, 3);
   
+  const fallbackProduct = React.useMemo(() => {
+    return products.find(item => item.slug === slug || String(item.id) === slug) || products[0];
+  }, [slug]);
+
+  const [product, setProduct] = React.useState(fallbackProduct);
   const [reviews, setReviews] = React.useState([]);
   const [loadingReviews, setLoadingReviews] = React.useState(true);
   const [showReviewForm, setShowReviewForm] = React.useState(false);
   const [reviewForm, setReviewForm] = React.useState({ rating: 5, title: '', comment: '', guestName: '' });
   const [submittingReview, setSubmittingReview] = React.useState(false);
 
+  const related = React.useMemo(() => {
+    return products.filter(item => item.category === product.category && item.slug !== product.slug).slice(0, 3);
+  }, [product.category, product.slug]);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    const loadProductData = async () => {
+      try {
+        const res = await api.get(`/products/${slug}`);
+        if (res.success && res.data && isMounted) {
+          setProduct(res.data);
+        }
+      } catch (err) {
+        console.warn('Using local fallback for product:', err);
+      }
+    };
+    loadProductData();
+    return () => { isMounted = false; };
+  }, [slug]);
+
   React.useEffect(() => {
     const fetchReviews = async () => {
       try {
-        const response = await api.get(`/reviews?productId=${product.id}`);
+        const queryId = product._id || product.id;
+        const response = await api.get(`/reviews?productId=${queryId}`);
         if (response.success) setReviews(response.data);
       } catch (err) {
         console.error('Failed to load reviews', err);
@@ -326,7 +349,7 @@ export const ProductDetailsPage = ({ slug }) => {
       }
     };
     fetchReviews();
-  }, [product.id]);
+  }, [product._id, product.id]);
 
   const handleReviewChange = (e) => setReviewForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -335,7 +358,7 @@ export const ProductDetailsPage = ({ slug }) => {
     setSubmittingReview(true);
     try {
       const payload = {
-        productId: product.id,
+        productId: product._id || product.id,
         rating: Number(reviewForm.rating),
         title: reviewForm.title,
         comment: reviewForm.comment,
@@ -482,11 +505,11 @@ export const UserDashboardPage = () => {
       <MetricGrid metrics={dashboardMetrics} />
       <section className="split-panel">
         <TableShell rows={recentOrders.length > 0 ? recentOrders.map(o => ({
-          id: o._id.slice(-6).toUpperCase(),
-          product: o.items.length === 1 ? o.items[0].name : `${o.items[0].name} + ${o.items.length - 1} more`,
+          id: (o._id || o.id || '').toString().slice(-6).toUpperCase() || '—',
+          product: o.items?.length === 1 ? o.items[0].name : o.items?.length > 1 ? `${o.items[0].name} + ${o.items.length - 1} more` : 'Order',
           status: o.status || o.timeline?.[o.timeline.length - 1]?.status || 'pending',
-          date: new Date(o.createdAt).toLocaleDateString(),
-          amount: formatPrice(o.total)
+          date: o.createdAt ? new Date(o.createdAt).toLocaleDateString() : '—',
+          amount: formatPrice(o.total || 0)
         })) : []} title="Recent Orders" />
         <article className="premium-card">
           <h3>Recommended next</h3>
@@ -822,7 +845,7 @@ export const CheckoutPage = () => {
           <label>Full name<input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Sarthak Mathapati" required /></label>
           <label>Email<input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="you@mythicmart.com" required /></label>
           <label>Address<input type="text" name="line1" value={formData.line1} onChange={handleChange} placeholder="Street address" required /></label>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+          <div className="checkout-address-grid">
             <label>City<input type="text" name="city" value={formData.city} onChange={handleChange} placeholder="City" required /></label>
             <label>State<input type="text" name="state" value={formData.state} onChange={handleChange} placeholder="State" required /></label>
             <label>Zip<input type="text" name="zip" value={formData.zip} onChange={handleChange} placeholder="Zip" required /></label>

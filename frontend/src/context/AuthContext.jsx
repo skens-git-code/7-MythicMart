@@ -9,6 +9,12 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const handleLogout = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    setUser(null);
+    setError(null);
+  }, []);
+
   // Initialize session
   useEffect(() => {
     const initializeAuth = async () => {
@@ -30,7 +36,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     initializeAuth();
-  }, []);
+  }, [handleLogout]);
 
   const handleLogin = async (email, password) => {
     try {
@@ -65,13 +71,6 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: msg };
     }
   };
-
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEYS.TOKEN);
-    setUser(null);
-    setError(null);
-    // Optionally trigger a route reload or redirect to home here, or handled by a hook
-  }, []);
 
   return (
     <AuthContext.Provider

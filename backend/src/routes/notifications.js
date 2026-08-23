@@ -28,7 +28,7 @@ router.patch('/:id/read', [param('id').isMongoId().withMessage('Invalid notifica
   const notification = await Notification.findOneAndUpdate(
     { _id: req.params.id, user: req.user._id },
     { readAt: new Date() },
-    { new: true }
+    { returnDocument: 'after' }
   );
 
   if (!notification) return sendError(res, 'Notification not found', 404);

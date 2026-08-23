@@ -44,7 +44,7 @@ const AuthPanel = ({ mode }) => {
 
     if (result.success) {
       if (mode === 'login' || mode === 'signup') {
-        addToast(`Welcome back, ${formData.email}!`, 'success');
+        addToast(`Welcome, ${formData.email}!`, 'success');
         window.location.hash = ROUTES.DASHBOARD;
       }
     } else {
@@ -61,9 +61,9 @@ const AuthPanel = ({ mode }) => {
         <h1 className="hero-title-fade-in">{title}</h1>
         <p className="elegant-text">{description}</p>
         <div className="auth-benefit-list">
-          {authBenefits.map(({ icon: Icon, title: itemTitle, description: itemDescription }) => (
+          {authBenefits.map(({ icon, title: itemTitle, description: itemDescription }) => (
             <div key={itemTitle}>
-              <Icon size={18} aria-hidden="true" />
+              {React.createElement(icon, { size: 18, 'aria-hidden': true })}
               <span>{itemTitle}</span>
               <small>{itemDescription}</small>
             </div>

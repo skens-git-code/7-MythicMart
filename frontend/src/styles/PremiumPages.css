@@ -773,3 +773,16 @@ th {
     width: fit-content;
   }
 }
+
+/* Checkout address row — 3 columns on desktop, stacks on mobile */
+.checkout-address-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 480px) {
+  .checkout-address-grid {
+    grid-template-columns: 1fr;
+  }
+}
