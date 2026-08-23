@@ -15,6 +15,10 @@ export const AuthProvider = ({ children }) => {
     setError(null);
   }, []);
 
+  const updateUser = useCallback((updates) => {
+    setUser((current) => (current ? { ...current, ...updates } : current));
+  }, []);
+
   // Initialize session
   useEffect(() => {
     const initializeAuth = async () => {
@@ -82,6 +86,7 @@ export const AuthProvider = ({ children }) => {
         login: handleLogin,
         register: handleRegister,
         logout: handleLogout,
+        updateUser,
       }}
     >
       {children}

@@ -2,14 +2,18 @@ import React, { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { ROUTES, toHashPath } from '../../utils/routes';
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
+const ProtectedRoute = ({ children, roles }) => {
+  const { user, isAuthenticated, loading } = useAuth();
+  const isAuthorized = isAuthenticated && (!roles?.length || roles.includes(user?.role));
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       window.location.hash = toHashPath(ROUTES.LOGIN);
     }
-  }, [loading, isAuthenticated]);
+    if (!loading && isAuthenticated && !isAuthorized) {
+      window.location.hash = toHashPath(ROUTES.DASHBOARD);
+    }
+  }, [loading, isAuthenticated, isAuthorized]);
 
   if (loading) {
     return (
@@ -20,7 +24,7 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!isAuthenticated || !isAuthorized) {
     return null;
   }
 

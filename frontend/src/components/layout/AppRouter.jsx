@@ -52,8 +52,8 @@ const AppRouter = () => {
       [ROUTES.PRODUCTS]: <ProductsPage />,
       [ROUTES.CATEGORIES]: <CategoriesPage />,
       [ROUTES.DASHBOARD]: <ProtectedRoute><UserDashboardPage /></ProtectedRoute>,
-      [ROUTES.ADMIN]: <ProtectedRoute><AdminDashboardPage /></ProtectedRoute>,
-      [ROUTES.ANALYTICS]: <ProtectedRoute><AnalyticsPage /></ProtectedRoute>,
+      [ROUTES.ADMIN]: <ProtectedRoute roles={['admin', 'manager']}><AdminDashboardPage /></ProtectedRoute>,
+      [ROUTES.ANALYTICS]: <ProtectedRoute roles={['admin']}><AnalyticsPage /></ProtectedRoute>,
       [ROUTES.ORDERS]: <ProtectedRoute><OrdersPage /></ProtectedRoute>,
       [ROUTES.WISHLIST]: <ProtectedRoute><WishlistPage /></ProtectedRoute>,
       [ROUTES.CART]: <CartPage />,
@@ -75,7 +75,7 @@ const AppRouter = () => {
       [ROUTES.SIGNUP]: <SignupPage />,
       [ROUTES.FORGOT_PASSWORD]: <ForgotPasswordPage />,
       [ROUTES.OTP]: <OTPVerificationPage />,
-      [ROUTES.RBAC]: <RBACPage />,
+      [ROUTES.RBAC]: <ProtectedRoute roles={['admin']}><RBACPage /></ProtectedRoute>,
       '/sitemap': <SitemapPage />,
     };
 

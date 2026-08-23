@@ -40,7 +40,6 @@ import {
   footerGroups,
   homeStats,
   helpTopics,
-  notifications,
   operationsCards,
   orderTimeline,
   recommendationCards,
@@ -51,6 +50,7 @@ import { useCart } from '../hooks/useCart';
 import { useUI } from '../context/UIContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../hooks/useTheme';
 import { CATEGORIES } from '../utils/constants';
 import { ROUTES, toHashPath } from '../utils/routes';
 import { formatPrice } from '../utils/formatters';
@@ -337,6 +337,7 @@ export const ProductDetailsPage = ({ slug }) => {
   }, [slug]);
 
   React.useEffect(() => {
+    setLoadingReviews(true);
     const fetchReviews = async () => {
       try {
         const queryId = product._id || product.id;
@@ -369,6 +370,8 @@ export const ProductDetailsPage = ({ slug }) => {
         addToast('Review submitted successfully. It will be visible once approved.', 'success');
         setShowReviewForm(false);
         setReviewForm({ rating: 5, title: '', comment: '', guestName: '' });
+        const refreshed = await api.get(`/reviews?productId=${product._id || product.id}`);
+        if (refreshed.success) setReviews(refreshed.data);
       } else {
         addToast(response.error || 'Failed to submit review', 'error');
       }
@@ -876,7 +879,7 @@ export const CheckoutPage = () => {
 };
 
 export const ProfilePage = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const { addToast } = useToast();
   const [formData, setFormData] = React.useState({
     name: user?.name || '',
@@ -899,7 +902,7 @@ export const ProfilePage = () => {
       const response = await api.patch('/users/profile', formData);
       if (response.success) {
         addToast('Profile updated successfully', 'success');
-        // A robust solution would also update the AuthContext user state here
+        updateUser(response.data);
       } else {
         addToast(response.error || 'Failed to update profile', 'error');
       }
@@ -925,19 +928,70 @@ export const ProfilePage = () => {
   );
 };
 
-export const SettingsPage = () => (
-  <>
-    <PageHero eyebrow="Settings" title="Privacy, security, and communication controls." description="Tune account security, notification channels, theme preferences, and checkout defaults." compact />
-    <div className="feature-grid">{['Two-factor authentication', 'Order SMS updates', 'Price-drop emails', 'Dark mode default', 'Saved payment review', 'Data export'].map(item => <IconCard key={item} icon={ShieldCheck} title={item} description="Configured for production account management workflows." />)}</div>
-  </>
-);
+export const SettingsPage = () => {
+  const { theme, toggleTheme } = useTheme();
+  const [preferences, setPreferences] = React.useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('mythicmart-preferences')) || { orderEmails: true, priceAlerts: true };
+    } catch {
+      return { orderEmails: true, priceAlerts: true };
+    }
+  });
+  const { addToast } = useToast();
 
-export const NotificationsPage = () => (
-  <>
-    <PageHero eyebrow="Notifications" title="Order, wishlist, and security alerts." description="A central inbox for real-time commerce events and account updates." compact />
-    <div className="notification-list">{notifications.map(({ icon: Icon, title, message, type }) => <IconCard key={title} icon={Icon} title={title} description={message} meta={type} />)}</div>
-  </>
-);
+  const updatePreference = (name, value) => {
+    const next = { ...preferences, [name]: value };
+    setPreferences(next);
+    localStorage.setItem('mythicmart-preferences', JSON.stringify(next));
+    addToast('Settings saved', 'success');
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="Settings" title="Privacy, security, and communication controls." description="Your preferences are saved on this device and applied immediately." compact />
+      <section className="premium-card form-grid" aria-label="Application settings">
+        <label className="setting-toggle"><input type="checkbox" checked={preferences.orderEmails} onChange={(e) => updatePreference('orderEmails', e.target.checked)} /> Order email updates</label>
+        <label className="setting-toggle"><input type="checkbox" checked={preferences.priceAlerts} onChange={(e) => updatePreference('priceAlerts', e.target.checked)} /> Price-drop alerts</label>
+        <label className="setting-toggle"><input type="checkbox" checked={theme === 'dark'} onChange={toggleTheme} /> Dark mode</label>
+      </section>
+    </>
+  );
+};
+
+export const NotificationsPage = () => {
+  const [items, setItems] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const { addToast } = useToast();
+
+  const loadNotifications = React.useCallback(async () => {
+    try {
+      const response = await api.get('/notifications/my');
+      if (response.success) setItems(response.data || []);
+    } catch (err) {
+      addToast(err.error || 'Unable to load notifications', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
+
+  React.useEffect(() => { loadNotifications(); }, [loadNotifications]);
+
+  const markRead = async (notification) => {
+    try {
+      await api.patch(`/notifications/${notification._id}/read`);
+      setItems((current) => current.map((item) => item._id === notification._id ? { ...item, readAt: new Date().toISOString() } : item));
+    } catch (err) {
+      addToast(err.error || 'Unable to update notification', 'error');
+    }
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="Notifications" title="Order, wishlist, and security alerts." description="A central inbox for real application events and account updates." compact />
+      {loading ? <div className="premium-card">Loading notifications...</div> : items.length === 0 ? <div className="premium-card"><h3>You're all caught up</h3><p>No notifications yet. New order and account events will appear here.</p></div> : <div className="notification-list">{items.map((item) => <article className="premium-card icon-card" key={item._id}><span className="card-icon" aria-hidden="true"><Bell size={20} /></span><div><h3>{item.title}</h3><p>{item.message}</p><small>{item.readAt ? 'Read' : 'Unread'}</small></div>{!item.readAt && <button className="text-action" type="button" onClick={() => markRead(item)}>Mark as read</button>}</article>)}</div>}
+    </>
+  );
+};
 
 export const ContactPage = () => {
   const { addToast } = useToast();
@@ -1097,7 +1151,15 @@ export const SupportSystemPage = () => {
   );
 };
 
-export const LoginPage = () => <AuthPanel mode="login" />;
+export const LoginPage = () => (
+  <PageHero
+    eyebrow="Sign in temporarily unavailable"
+    title="Login is paused while we complete maintenance."
+    description="The rest of the storefront remains available. Please try signing in again shortly."
+    actions={<a className="primary-action" href={toHashPath(ROUTES.HOME)}>Continue shopping</a>}
+    compact
+  />
+);
 export const SignupPage = () => <AuthPanel mode="signup" />;
 export const ForgotPasswordPage = () => <AuthPanel mode="forgot" />;
 export const OTPVerificationPage = () => <AuthPanel mode="otp" />;

@@ -13,6 +13,7 @@ const CategoryFilter = ({ activeCategory, onCategoryChange }) => {
         const isActive = activeCategory === cat.id;
         return (
           <button
+            type="button"
             key={cat.id}
             role="tab"
             aria-selected={isActive}

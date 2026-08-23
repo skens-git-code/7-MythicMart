@@ -1,0 +1,74 @@
+/* Shared responsive shell. Keep this file intentionally small and predictable. */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { width: 100%; min-width: 0; max-width: 100%; overflow-x: hidden; }
+img, svg { max-width: 100%; }
+button, input, select, textarea { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+
+header { display: block !important; position: relative; width: 100%; min-height: 64px; z-index: 1000; }
+header .nav-container { display: flex !important; align-items: center !important; width: calc(100% - 32px); max-width: 1440px; min-height: 64px; margin: 0 auto; padding: 8px 0; gap: 16px; }
+header .nav-indicator { display: none !important; }
+header .port { display: inline-flex; align-items: center; gap: 9px; flex: 0 0 auto; min-width: 0; white-space: nowrap; opacity: 1 !important; visibility: visible !important; }
+header .brand-mark { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 10px; background: linear-gradient(135deg, #14d9ff, #5a20ff); }
+header .brand-mark svg { width: 25px; height: 25px; fill: none; stroke: #07101c; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+header .brand-wordmark { color: var(--text, #f5f7fb); font-size: 1.02rem; font-weight: 800; letter-spacing: -.035em; }
+header .brand-wordmark span { color: var(--clr-primary, #14d9ff); }
+header .navbar-primary-links { display: flex; align-items: center; gap: 14px; min-width: 0; }
+header .navbar-primary-links .nav-link { white-space: nowrap; }
+header .navbar-search-container { min-width: 0; flex: 1 1 auto; }
+header .navbar-search-container > div { width: 100%; min-width: 0; }
+header .navbar-search-container input { width: min(280px, 100%); min-width: 120px !important; }
+header .navbar-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 6px; }
+header .mobile-menu-toggle { margin-left: auto; }
+.site-navbar { background: color-mix(in srgb, var(--c-bg, #050812) 90%, transparent); border-bottom: 1px solid var(--c-border, rgba(255,255,255,.08)); }
+.navbar-search-field { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0 13px; border: 1px solid var(--c-border, rgba(255,255,255,.12)); border-radius: 999px; color: var(--c-text-muted, #9aa7bd); background: rgba(255,255,255,.04); }
+.navbar-search-field input { width: 100% !important; min-width: 0 !important; border: 0 !important; outline: 0; background: transparent; color: var(--text, #fff); }
+.cart-nav-button { position: relative; }
+.cart-nav-count { position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; padding: 0 4px; border-radius: 999px; background: var(--clr-magenta, #a855f7); color: #fff; font-size: 10px; line-height: 17px; text-align: center; }
+.mobile-menu-overlay { display: none; }
+.mobile-menu-overlay.open { display: block; position: absolute; left: 0; right: 0; top: 100%; min-height: calc(100dvh - 64px); overflow-y: auto; background: var(--c-bg, #050812); border-top: 1px solid var(--c-border, rgba(255,255,255,.08)); }
+.mobile-menu-inner { width: min(100% - 32px, 520px); margin: 0 auto; padding: 20px 0 32px; }
+.mobile-links { display: grid; gap: 4px; margin-top: 18px; }
+.mobile-links .nav-link { display: flex; align-items: center; min-height: 46px; padding: 0 4px; }
+.mobile-action-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--c-border, rgba(255,255,255,.08)); }
+.mobile-action-row .theme-toggle { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding-inline: 8px; }
+.main-content, .main-content > *, .app-container { width: 100%; min-width: 0; max-width: 100%; }
+.container, .premium-section, .page-hero { min-width: 0; max-width: 100%; }
+.responsive-table { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; }
+input, select, textarea, .cta-button, .primary-action, .hero-btn, .theme-toggle { min-height: 44px; }
+
+@media (min-width: 901px) {
+  header .mobile-menu-toggle, header .mobile-menu-overlay { display: none !important; }
+  header .nav-container { min-height: 72px; }
+}
+@media (max-width: 900px) {
+  header .desktop-only { display: none !important; }
+  header .mobile-menu-toggle { display: inline-flex !important; align-items: center; justify-content: center; visibility: visible !important; opacity: 1 !important; }
+  header .navbar-search-container, header .navbar-actions { display: none !important; }
+  header .nav-container { padding-block: 8px; }
+}
+@media (max-width: 640px) {
+  header .nav-container { width: calc(100% - 24px); gap: 10px; }
+  header .brand-mark { width: 32px; height: 32px; flex-basis: 32px; }
+  header .brand-wordmark { font-size: .96rem; }
+  .page-hero, .premium-section { padding-inline: 16px; }
+  .feature-grid, .metric-grid, .split-panel, .product-detail-layout { grid-template-columns: 1fr !important; }
+  .projects-grid, .mini-product-grid, .recommendation-grid, .category-showcase-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
+  .project-card, .product-mini-card, .premium-card, .glass-card { min-width: 0; overflow: hidden; }
+  .project-card img, .product-mini-card img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
+  .project-card h3, .product-mini-card h3, .product-detail-card h1 { overflow-wrap: anywhere; }
+  .form-grid input, .form-grid select, .form-grid textarea { width: 100%; }
+  .modal-content, .modal-dialog { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow: auto; }
+}
+@media (max-width: 420px) {
+  header .brand-wordmark { font-size: .9rem; }
+  .projects-grid, .mini-product-grid, .recommendation-grid, .category-showcase-grid { grid-template-columns: 1fr !important; }
+  .catalog-control-panel { width: 100%; flex-wrap: wrap; border-radius: 16px !important; }
+  .catalog-control-panel > * { flex: 1 1 100%; }
+  .catalog-control-panel select { width: 100%; }
+  .category-filter { max-width: 100%; overflow-x: auto; flex-wrap: nowrap !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
