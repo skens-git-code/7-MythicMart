@@ -63,6 +63,10 @@ const reviewSchema = new mongoose.Schema(
 
 reviewSchema.index({ product: 1, status: 1, createdAt: -1 });
 reviewSchema.index({ user: 1, createdAt: -1 }, { sparse: true });
+reviewSchema.index(
+  { product: 1, user: 1 },
+  { unique: true, partialFilterExpression: { user: { $type: 'objectId' } } }
+);
 reviewSchema.index({ rating: -1, createdAt: -1 });
 
 const Review = mongoose.model('Review', reviewSchema);

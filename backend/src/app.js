@@ -21,6 +21,8 @@ import supportRouter from './routes/support.js';
 import notificationsRouter from './routes/notifications.js';
 import usersRouter from './routes/users.js';
 import analyticsRouter from './routes/analytics.js';
+import newsletterRouter from './routes/newsletter.js';
+import productSyncRouter from './routes/productSync.js';
 
 const app = express();
 
@@ -65,6 +67,7 @@ app.use('/api', apiLimiter);
 
 /* ── Routes ── */
 app.use('/api/health', healthRouter);
+app.use('/api/products/sync', productSyncRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/orders', ordersRouter);
@@ -74,6 +77,7 @@ app.use('/api/support', supportRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/newsletter', newsletterRouter);
 
 /* ── Root Endpoint ── */
 app.get('/', (req, res) => {

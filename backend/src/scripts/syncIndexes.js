@@ -8,6 +8,8 @@ import Review from '../models/Review.js';
 import Coupon from '../models/Coupon.js';
 import Notification from '../models/Notification.js';
 import SupportTicket from '../models/SupportTicket.js';
+import Subscriber from '../models/Subscriber.js';
+import SyncRun from '../models/SyncRun.js';
 
 const run = async () => {
   validateEnv();
@@ -16,7 +18,7 @@ const run = async () => {
     throw new Error('Cannot sync indexes without MongoDB');
   }
 
-  const models = [User, Product, Order, Review, Coupon, Notification, SupportTicket];
+  const models = [User, Product, Order, Review, Coupon, Notification, SupportTicket, Subscriber, SyncRun];
   for (const model of models) {
     await model.syncIndexes();
     console.log(`Synced indexes for ${model.modelName}`);

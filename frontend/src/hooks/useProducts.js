@@ -1,16 +1,16 @@
-/* Custom hook to fetch products from API with static fallback */
+/* Catalog hook backed by the API; empty/error states remain explicit. */
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
-import staticProducts from '../data/products';
 import { normalizeProduct } from '../utils/assets';
 
 const CACHE_TTL_MS = 60_000;
 const productCache = new Map();
 
-export const useProducts = (category = 'all', sort = 'newest', search = '') => {
+export const useProducts = (category = 'all', sort = 'newest', search = '', page = 1, limit = 12) => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [pagination, setPagination] = useState({ page, limit, total: 0, pages: 0 });
   const [debouncedSearch, setDebouncedSearch] = useState(search);
 
   useEffect(() => {
@@ -24,10 +24,11 @@ export const useProducts = (category = 'all', sort = 'newest', search = '') => {
   }, [search]);
 
   const fetchProducts = useCallback(async () => {
-    const cacheKey = JSON.stringify({ category, sort, search: debouncedSearch });
+    const cacheKey = JSON.stringify({ category, sort, search: debouncedSearch, page, limit });
     const cached = productCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
       setProducts(cached.products);
+      setPagination(cached.pagination);
       setLoading(false);
       setError(null);
       return;
@@ -40,36 +41,27 @@ export const useProducts = (category = 'all', sort = 'newest', search = '') => {
       if (category !== 'all') params.append('category', category);
       if (sort) params.append('sort', sort);
       if (debouncedSearch) params.append('search', debouncedSearch);
+      params.append('page', String(page));
+      params.append('limit', String(limit));
 
       const response = await api.get(`/products?${params.toString()}`);
       
       const formatted = response.data.map(normalizeProduct);
-      productCache.set(cacheKey, { products: formatted, timestamp: Date.now() });
+      const nextPagination = response.pagination || { page, limit, total: formatted.length, pages: formatted.length ? 1 : 0 };
+      productCache.set(cacheKey, { products: formatted, pagination: nextPagination, timestamp: Date.now() });
       setProducts(formatted);
+      setPagination(nextPagination);
     } catch (err) {
-      /* Fallback to static data */
-      let filtered = [...staticProducts];
-      if (category !== 'all') {
-        filtered = filtered.filter(p => p.category === category);
-      }
-      if (debouncedSearch) {
-        const q = debouncedSearch.toLowerCase();
-        filtered = filtered.filter(p => 
-          p.name.toLowerCase().includes(q) || 
-          p.description.toLowerCase().includes(q)
-        );
-      }
-      const formatted = filtered.map(normalizeProduct);
-      setProducts(formatted);
+      setProducts([]);
       setError(err.error || err.message || 'API unavailable');
     } finally {
       setLoading(false);
     }
-  }, [category, sort, debouncedSearch]);
+  }, [category, sort, debouncedSearch, page, limit]);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  return { products, loading, error, refetch: fetchProducts };
+  return { products, loading, error, pagination, refetch: fetchProducts };
 };

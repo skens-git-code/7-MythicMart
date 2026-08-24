@@ -403,6 +403,8 @@ header.scrolled, .navbar.scrolled { padding:10px 20px; }
 }
 .nav-link:hover, .nav-link.active { color:#fff; }
 .nav-link.active { font-weight:600; }
+[data-theme='light'] .nav-link:hover,
+[data-theme='light'] .nav-link.active { color:var(--text); }
 .nav-link::after { display:none; } /* remove old underline */
 
 /* Theme toggle */
@@ -444,10 +446,10 @@ body.nav-open .navbar { z-index:var(--z-modal); }
    5.  HERO
    ------------------------------------------------------------ */
 .hero {
-    min-height:100vh; min-height:100dvh;
+    min-height:calc(100vh - var(--nav-height)); min-height:calc(100dvh - var(--nav-height));
     display:flex; align-items:center; justify-content:center;
     position:relative; overflow:hidden;
-    padding:120px 20px 60px;
+    padding:72px 20px 48px;
 }
 
 .hero-3d-container {

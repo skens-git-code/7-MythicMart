@@ -48,7 +48,7 @@ const productSchema = new mongoose.Schema(
     },
     image: {
       type: String,
-      required: [true, 'Product image is required'],
+      default: null,
     },
     badge: {
       type: String,
@@ -133,6 +133,24 @@ const productSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    source: { type: String, enum: ['local', 'shopify'], default: 'local', index: true },
+    shopifyProductId: { type: String, trim: true },
+    shopifyHandle: { type: String, trim: true },
+    shopifyStatus: { type: String, trim: true, uppercase: true },
+    productType: { type: String, trim: true },
+    shopifyTags: { type: [String], default: [] },
+    shopifyProductUpdatedAt: { type: Date },
+    shopifyProductCreatedAt: { type: Date },
+    images: [{ url: { type: String, required: true }, altText: String }],
+    variants: [{
+      shopifyVariantId: { type: String, required: true },
+      title: String, sku: String, price: { type: Number, min: 0 },
+      compareAtPrice: { type: Number, min: 0, default: null },
+      inventoryQuantity: { type: Number, default: 0 }, availableForSale: Boolean,
+      selectedOptions: [{ name: String, value: String }], image: String,
+    }],
+    options: [{ name: String, values: [String] }],
+    shopifyVariantIds: { type: [String], default: [] },
   },
   {
     timestamps: true,
@@ -161,6 +179,9 @@ productSchema.index({ isActive: 1, aiScore: -1, rating: -1 });
 productSchema.index({ isActive: 1, featured: -1, salesCount: -1 });
 productSchema.index({ category: 1, isActive: 1, aiScore: -1 });
 productSchema.index({ stock: 1, reorderPoint: 1, isActive: 1 });
+productSchema.index({ shopifyProductId: 1 }, { unique: true, sparse: true });
+productSchema.index({ source: 1, shopifyStatus: 1, isActive: 1 });
+productSchema.index({ shopifyHandle: 1 }, { sparse: true });
 
 /* Auto-generate slug from name before saving */
 productSchema.pre('save', function () {

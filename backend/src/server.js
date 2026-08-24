@@ -3,6 +3,8 @@ import app from './app.js';
 import { config, validateEnv } from './config/env.js';
 import connectDB from './config/db.js';
 import mongoose from 'mongoose';
+import { config as appConfig } from './config/env.js';
+import { syncShopifyProducts, shopifySyncConfigured } from './services/shopifySyncService.js';
 
 /* Start server */
 const startServer = async () => {
@@ -20,6 +22,13 @@ const startServer = async () => {
     console.log(`   URL         : http://localhost:${config.port}`);
     console.log(`   Health      : http://localhost:${config.port}/api/health\n`);
   });
+
+  if (shopifySyncConfigured() && appConfig.shopify.syncOnStart) {
+    syncShopifyProducts().catch(error => console.error('Shopify startup sync failed:', error.message));
+  }
+  if (shopifySyncConfigured() && appConfig.shopify.syncIntervalMs > 0) {
+    setInterval(() => syncShopifyProducts().catch(error => console.error('Shopify scheduled sync failed:', error.message)), appConfig.shopify.syncIntervalMs).unref();
+  }
 
   server.keepAliveTimeout = 65_000;
   server.headersTimeout = 66_000;

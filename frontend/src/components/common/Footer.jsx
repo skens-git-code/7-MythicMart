@@ -3,6 +3,7 @@ import { Instagram, Linkedin, Twitter, ArrowRight } from 'lucide-react';
 import { footerGroups } from '../../data/siteContent';
 import { useToast } from '../../context/ToastContext';
 import { toHashPath } from '../../utils/routes';
+import { api } from '../../services/api';
 import '../../styles/Footer.css';
 
 const Footer = () => {
@@ -10,11 +11,22 @@ const Footer = () => {
   const { addToast } = useToast();
   const [newsletterEmail, setNewsletterEmail] = useState('');
 
-  const handleNewsletter = (e) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleNewsletter = async (e) => {
     e.preventDefault();
-    if (newsletterEmail) {
-      addToast(`Subscribed ${newsletterEmail} to MythicMart drops!`, 'success');
-      setNewsletterEmail('');
+    if (newsletterEmail && !isSubmitting) {
+      setIsSubmitting(true);
+      try {
+        const response = await api.post('/newsletter/subscribe', { email: newsletterEmail });
+        if (!response.success) throw new Error(response.error || 'Unable to subscribe');
+        addToast(`Subscribed ${newsletterEmail} to MythicMart drops!`, 'success');
+        setNewsletterEmail('');
+      } catch (err) {
+        addToast(err.error || err.message || 'Unable to subscribe right now', 'error');
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   };
 
@@ -64,7 +76,7 @@ const Footer = () => {
               onChange={(e) => setNewsletterEmail(e.target.value)}
               required
             />
-            <button type="submit" className="hero-btn primary" style={{ minWidth: '0', padding: '0 20px', height: '100%', borderRadius: '25px' }} aria-label="Subscribe">
+            <button type="submit" className="hero-btn primary" disabled={isSubmitting} style={{ minWidth: '0', padding: '0 20px', height: '100%', borderRadius: '25px' }} aria-label="Subscribe">
               <ArrowRight size={18} />
             </button>
           </form>

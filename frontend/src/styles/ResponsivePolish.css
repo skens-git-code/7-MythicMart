@@ -38,11 +38,36 @@ header .mobile-menu-toggle { margin-left: auto; }
 table { width: 100%; }
 input, select, textarea, .cta-button, .primary-action, .hero-btn, .theme-toggle { min-height: 44px; }
 
+@media (max-width: 1300px) and (min-width: 901px) {
+  header .nav-container { gap: 8px; width: calc(100% - 28px); }
+  header .navbar-primary-links { gap: 3px; }
+  header .navbar-primary-links .nav-link { font-size: .76rem; padding-inline: 7px; }
+  header .navbar-search-container { flex: 1 1 220px; max-width: 270px; }
+  header .navbar-actions { gap: 3px; }
+  header .theme-toggle { width: 40px; height: 40px; }
+}
+
 @media (min-width: 901px) {
   header .mobile-menu-toggle, header .mobile-menu-overlay { display: none !important; }
   header .nav-container { min-height: 72px; }
 }
 @media (max-width: 900px) {
+  header .nav-container {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: calc(100% - 32px);
+    height: auto;
+    flex-direction: row;
+    align-items: center;
+    padding: 8px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    transition: none;
+    z-index: auto;
+  }
   header .desktop-only { display: none !important; }
   header .mobile-menu-toggle { display: inline-flex !important; align-items: center; justify-content: center; visibility: visible !important; opacity: 1 !important; }
   header .navbar-search-container, header .navbar-actions { display: none !important; }
@@ -57,8 +82,15 @@ input, select, textarea, .cta-button, .primary-action, .hero-btn, .theme-toggle 
   .projects-grid, .mini-product-grid, .recommendation-grid, .category-showcase-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px !important; }
   .project-card, .product-mini-card, .premium-card, .glass-card { min-width: 0; overflow: hidden; }
   .project-card img, .product-mini-card img { width: 100%; height: auto; aspect-ratio: 1; object-fit: cover; }
-  .project-card h3, .product-mini-card h3, .product-detail-card h1 { overflow-wrap: anywhere; }
+  .project-card h3, .product-mini-card h3 { overflow-wrap: anywhere; }
+  .product-detail-card h1 {
+    font-size: clamp(2rem, 9vw, 2.8rem);
+    overflow-wrap: normal;
+    word-break: normal;
+  }
   .form-grid input, .form-grid select, .form-grid textarea { width: 100%; }
+  .notification-actions { grid-column: 2; justify-content: flex-start; margin-left: 0; }
+  .page-hero-actions .cta-button { width: 100%; }
   .modal-content, .modal-dialog { width: calc(100vw - 24px); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow: auto; }
 }
 @media (max-width: 420px) {

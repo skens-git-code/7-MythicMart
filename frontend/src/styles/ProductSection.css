@@ -496,3 +496,21 @@
     justify-content: center;
   }
 }
+.catalog-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin: 32px auto 0;
+  color: var(--text-secondary);
+}
+
+.catalog-pagination .hero-btn {
+  min-width: 120px;
+  gap: 8px;
+}
+
+@media (max-width: 520px) {
+  .catalog-pagination { gap: 10px; font-size: .85rem; }
+  .catalog-pagination .hero-btn { min-width: 0; padding: 0 12px; }
+}

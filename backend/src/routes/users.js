@@ -107,15 +107,69 @@ router.patch(
   [
     body('name').optional().trim().isLength({ min: 2, max: 60 }).withMessage('Name must be between 2 and 60 characters'),
     body('avatar').optional({ nullable: true }).trim().isURL().withMessage('Avatar must be a valid URL'),
+    body('preferences').optional().isObject().withMessage('Preferences must be an object'),
   ],
   validate,
   asyncHandler(async (req, res) => {
     const updates = {};
     if (req.body.name) updates.name = req.body.name;
     if (Object.prototype.hasOwnProperty.call(req.body, 'avatar')) updates.avatar = req.body.avatar || null;
+    if (req.body.preferences) {
+      const allowed = ['orderUpdates', 'priceDrops', 'security', 'promotions'];
+      allowed.forEach((key) => {
+        if (typeof req.body.preferences[key] === 'boolean') {
+          updates[`preferences.notifications.${key}`] = req.body.preferences[key];
+        }
+      });
+    }
 
-    const user = await User.findByIdAndUpdate(req.user._id, updates, { returnDocument: 'after' });
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { returnDocument: 'after', runValidators: true });
+    if (!user) return sendError(res, 'User not found', 404);
     sendSuccess(res, user);
+  })
+);
+
+router.patch(
+  '/profile/password',
+  [
+    body('currentPassword').notEmpty().withMessage('Current password is required'),
+    body('newPassword')
+      .isStrongPassword({ minLength: 8, minLowercase: 1, minUppercase: 1, minNumbers: 1, minSymbols: 0 })
+      .withMessage('New password must be at least 8 characters and include uppercase, lowercase, and a number'),
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) return sendError(res, 'User not found', 404);
+
+    const isMatch = await user.comparePassword(req.body.currentPassword);
+    if (!isMatch) return sendError(res, 'Current password does not match', 400);
+
+    user.password = req.body.newPassword;
+    await user.save();
+
+    sendSuccess(res, { message: 'Password updated successfully' });
+  })
+);
+
+router.post(
+  '/profile/delete-account',
+  [
+    body('password').notEmpty().withMessage('Password is required for account deletion'),
+    body('confirmation').equals('DELETE').withMessage('Must confirm by typing DELETE'),
+  ],
+  validate,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).select('+password');
+    if (!user) return sendError(res, 'User not found', 404);
+
+    const isMatch = await user.comparePassword(req.body.password);
+    if (!isMatch) return sendError(res, 'Invalid password', 401);
+
+    user.isActive = false;
+    await user.save({ validateBeforeSave: false });
+
+    sendSuccess(res, { message: 'Account has been deactivated successfully' });
   })
 );
 
@@ -133,6 +187,8 @@ router.post(
       { returnDocument: 'after' }
     ).populate('wishlist', 'name slug price image category rating');
 
+    if (!user) return sendError(res, 'User not found', 404);
+
     sendSuccess(res, user.wishlist);
   })
 );
@@ -147,6 +203,8 @@ router.delete(
       { $pull: { wishlist: new mongoose.Types.ObjectId(req.params.productId) } },
       { returnDocument: 'after' }
     ).populate('wishlist', 'name slug price image category rating');
+
+    if (!user) return sendError(res, 'User not found', 404);
 
     sendSuccess(res, user.wishlist);
   })

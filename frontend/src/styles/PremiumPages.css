@@ -133,6 +133,17 @@
   min-height: 184px;
 }
 
+.notification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.7rem;
+  margin-left: auto;
+}
+
+.error-text { color: var(--danger); font-weight: 800; }
+
 .icon-card h3,
 .premium-card h3,
 .product-mini-card h3 {
@@ -599,6 +610,62 @@ th {
   padding: 0.85rem 0.9rem;
 }
 
+.password-field {
+  position: relative;
+  display: block;
+}
+
+.password-field input {
+  padding-right: 3.2rem;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.45rem;
+  display: grid;
+  width: 2.4rem;
+  height: 2.4rem;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  background: var(--glass-search-bg);
+  color: var(--text-primary);
+}
+
+.field-help {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.form-error {
+  padding: 0.75rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--error, #dc2626) 35%, transparent);
+  border-radius: var(--btn-radius);
+  background: color-mix(in srgb, var(--error, #dc2626) 10%, transparent);
+  color: var(--error, #dc2626);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.spin {
+  animation: auth-spin 0.9s linear infinite;
+}
+
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+
 [data-theme='dark'] .form-grid input,
 [data-theme='dark'] .form-grid textarea,
 [data-theme='dark'] .form-grid select,
@@ -785,4 +852,76 @@ th {
   .checkout-address-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Settings Layout & Tabs */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.settings-sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 860px) {
+  .settings-layout {
+    grid-template-columns: 1fr;
+  }
+  .settings-sidebar nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 6px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .settings-sidebar nav button {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
+/* Responsive Table Wrapper */
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--card-radius);
+}
+
+.table-responsive-wrapper table {
+  min-width: 600px;
+}
+
+/* Notification Item Refinement */
+.notification-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.notification-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Interactive Focus States */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--clr-primary, #14d9ff);
+  outline-offset: 2px;
+}
+
+/* Smooth Form Controls */
+input, select, textarea {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--clr-primary, #14d9ff);
+  box-shadow: 0 0 0 3px rgba(20, 217, 255, 0.15);
 }

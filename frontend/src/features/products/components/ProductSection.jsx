@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ArrowUpRight, Check, Heart, ShoppingBag, SlidersHorizontal, Sparkles, Star, Truck } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ArrowRight, Check, Heart, ShoppingBag, SlidersHorizontal, Sparkles, Star, Truck } from 'lucide-react';
 import { useCart } from '../../../hooks/useCart';
 import { useToast } from '../../../context/ToastContext';
 import { useUI } from '../../../context/UIContext';
@@ -44,9 +44,12 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
   const { searchQuery, clearSearch } = useUI();
   const [activeCategory, setActiveCategory] = useState(getCategoryFromHash);
   const [sort, setSort] = useState('newest');
+  const [page, setPage] = useState(1);
 
   const trimmedSearch = searchQuery.trim();
-  const { products: displayProducts, loading, error } = useProducts(activeCategory, sort, trimmedSearch);
+  const { products: displayProducts, loading, error, pagination } = useProducts(activeCategory, sort, trimmedSearch, page, 12);
+
+  React.useEffect(() => { setPage(1); }, [activeCategory, sort, trimmedSearch]);
 
   const handleCategoryChange = useCallback((category) => {
     setActiveCategory(category);
@@ -116,7 +119,7 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
 
         {error && (
           <div className="glass-card" role="status" style={{ padding: '20px', textAlign: 'center', color: 'var(--warning)', marginBottom: '20px' }}>
-            Showing resilient offline catalog data while the API reconnects.
+            {error}
           </div>
         )}
 
@@ -165,7 +168,7 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
 
                 <div className="project-content">
                   <div className="project-tech" style={{ marginBottom: '8px' }}>
-                    <span className="tech-tag"><Check size={12} strokeWidth={3} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> In stock</span>
+                    <span className="tech-tag"><Check size={12} strokeWidth={3} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {product.stock > 0 ? 'In stock' : 'Out of stock'}</span>
                     {product.freeShipping && <span className="tech-tag" style={{ background: 'rgba(0, 255, 140, 0.1)', color: 'var(--clr-green)', borderColor: 'rgba(0, 255, 140, 0.2)' }}><Truck size={12} style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> Free ship</span>}
                     <span className="tech-tag" style={{ background: 'rgba(255, 199, 0, 0.1)', color: 'var(--clr-gold)', borderColor: 'rgba(255, 199, 0, 0.2)' }}><Star size={12} fill="currentColor" style={{ display: 'inline', verticalAlign: 'text-bottom' }} /> {product.rating}</span>
                   </div>
@@ -192,10 +195,11 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
                       style={{ height: '40px', minWidth: '100px', padding: '0 20px', fontSize: '0.85rem' }}
                       type="button"
                       onClick={() => handleAddToCart(product)}
+                      disabled={product.stock <= 0}
                       aria-label={`Add ${product.name} to cart`}
                     >
                       <ShoppingBag size={16} aria-hidden="true" />
-                      <span>Add</span>
+                      <span>{product.stock > 0 ? 'Add' : 'Unavailable'}</span>
                     </button>
                   </div>
 
@@ -207,6 +211,13 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
             ))
           )}
         </div>
+        {!loading && pagination.pages > 1 && (
+          <nav className="catalog-pagination" aria-label="Product pages">
+            <button type="button" className="hero-btn outline" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page === 1}><ArrowLeft size={15} /> Previous</button>
+            <span aria-live="polite">Page {pagination.page} of {pagination.pages}</span>
+            <button type="button" className="hero-btn outline" onClick={() => setPage(value => Math.min(pagination.pages, value + 1))} disabled={page >= pagination.pages}>Next <ArrowRight size={15} /></button>
+          </nav>
+        )}
       </div>
     </section>
   );

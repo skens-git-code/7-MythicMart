@@ -6,6 +6,7 @@ import { useUI } from '../../context/UIContext';
 import { useAuth } from '../../context/AuthContext';
 import { primaryNavLinks } from '../../data/siteContent';
 import { ROUTES, toHashPath } from '../../utils/routes';
+import { useRoute } from '../../hooks/useRoute';
 import '../../styles/GlassNavbar.css';
 import '../../styles/ResponsivePolish.css';
 
@@ -14,6 +15,7 @@ const Navbar = () => {
   const { totalCount } = useCart();
   const { openCart, searchQuery, setSearchQuery } = useUI();
   const { user } = useAuth();
+  const route = useRoute();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -43,7 +45,7 @@ const Navbar = () => {
         </a>
 
         <nav className="navbar-primary-links desktop-only" aria-label="Primary navigation">
-          {primaryNavLinks.slice(0, 5).map((link) => <a className="nav-link" href={toHashPath(link.path)} key={link.path}>{link.label}</a>)}
+          {primaryNavLinks.slice(0, 5).map((link) => <a className={`nav-link${route === link.path ? ' active' : ''}`} href={toHashPath(link.path)} key={link.path}>{link.label}</a>)}
         </nav>
 
         <form className="navbar-search-container desktop-only" role="search" onSubmit={submitSearch}>

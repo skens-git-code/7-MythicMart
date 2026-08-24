@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, LoaderCircle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { useToast } from '../../../context/ToastContext';
 import { ROUTES, toHashPath } from '../../../utils/routes';
@@ -17,6 +17,7 @@ const AuthPanel = ({ mode }) => {
     otp: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const labels = {
     login: ['Welcome back', 'Access orders, wishlist, rewards, and dashboard tools.'],
@@ -40,6 +41,13 @@ const AuthPanel = ({ mode }) => {
       result = await login(formData.email, formData.password);
     } else if (mode === 'signup') {
       result = await register(formData.name, formData.email, formData.password);
+    } else {
+      result = {
+        success: false,
+        error: mode === 'forgot'
+          ? 'Password recovery is not available yet. Please contact support for help.'
+          : 'OTP verification is only available after a supported recovery request.'
+      };
     }
 
     if (result.success) {
@@ -71,40 +79,47 @@ const AuthPanel = ({ mode }) => {
         </div>
       </div>
       <form className="glass-card auth-form" onSubmit={handleSubmit}>
-        {error && <div className="form-error" style={{ color: 'var(--error)', fontSize: '0.9rem', marginBottom: '15px' }}>{error}</div>}
+        {error && <div className="form-error" role="alert">{error}</div>}
         
         {mode === 'signup' && (
           <label>
             Name
-            <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Full Name" required />
+            <input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Full Name" autoComplete="name" required />
           </label>
         )}
         
         {(mode === 'login' || mode === 'signup' || mode === 'forgot') && (
           <label>
             Email
-            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="you@example.com" required />
+            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="you@example.com" autoComplete="email" required />
           </label>
         )}
         
         {(mode === 'login' || mode === 'signup') && (
           <label>
             Password
-            <input type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" required minLength={8} />
+            <span className="password-field">
+              <input type={showPassword ? 'text' : 'password'} name="password" value={formData.password} onChange={handleChange} placeholder="Password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={8} />
+              <button className="password-toggle" type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </span>
+            {mode === 'signup' && <small className="field-help">Use at least 8 characters with an uppercase letter, lowercase letter, and number.</small>}
           </label>
         )}
         
         
         <button type="submit" className="cta-button" disabled={isSubmitting} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-          {isSubmitting ? 'Processing...' : (
+          {isSubmitting ? <><LoaderCircle size={18} className="spin" /> Processing...</> : (
             <>
-              {mode === 'login' ? 'Login' : 'Create account'}
+              {mode === 'login' ? 'Login' : mode === 'signup' ? 'Create account' : mode === 'forgot' ? 'Request reset' : 'Verify code'}
               <ArrowRight size={18} />
             </>
           )}
         </button>
         
         <div className="auth-links">
+          {mode === 'login' && <a href={toHashPath(ROUTES.FORGOT_PASSWORD)}>Forgot password?</a>}
           {mode !== 'login' && <a href={toHashPath(ROUTES.LOGIN)}>Login</a>}
           {mode !== 'signup' && <a href={toHashPath(ROUTES.SIGNUP)}>Signup</a>}
         </div>

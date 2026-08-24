@@ -13,5 +13,8 @@ export const assetPath = (path = '') => {
 export const normalizeProduct = (product) => ({
   ...product,
   id: product.id || product._id,
-  image: assetPath(product.image),
+  image: assetPath(product.image || product.images?.[0]?.url),
+  images: (product.images || []).map(image => typeof image === 'string' ? assetPath(image) : { ...image, url: assetPath(image.url) }),
+  variants: product.variants || [],
+  variantId: product.variantId || product.shopifyVariantIds?.[0],
 });

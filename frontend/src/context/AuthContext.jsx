@@ -53,7 +53,9 @@ export const AuthProvider = ({ children }) => {
       }
       return { success: false, error: 'Login failed unexpectedly.' };
     } catch (err) {
-      const msg = err.error || err.message || 'Login failed';
+      const msg = err.error === 'Database is temporarily unavailable'
+        ? 'The account service is unavailable because the database is offline. Start MongoDB and try again.'
+        : err.error || err.message || 'Login failed';
       setError(msg);
       return { success: false, error: msg };
     }
@@ -70,7 +72,9 @@ export const AuthProvider = ({ children }) => {
       }
       return { success: false, error: 'Registration failed unexpectedly.' };
     } catch (err) {
-      const msg = err.error || err.message || 'Registration failed';
+      const msg = err.error === 'Database is temporarily unavailable'
+        ? 'The account service is unavailable because the database is offline. Start MongoDB and try again.'
+        : err.error || err.message || 'Registration failed';
       setError(msg);
       return { success: false, error: msg };
     }

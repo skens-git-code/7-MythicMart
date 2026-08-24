@@ -16,10 +16,11 @@ export const CartProvider = ({ children }) => {
 
     const addItem = useCallback((product) => {
         setItems(prev => {
-            const existing = prev.find(item => item.id === product.id);
+            const variantId = product.variantId || product.shopifyVariantIds?.[0] || product.id;
+            const existing = prev.find(item => item.id === product.id && item.variantId === variantId);
             if (existing) {
                 return prev.map(item =>
-                    item.id === product.id
+                    item.id === product.id && item.variantId === variantId
                         ? { ...item, quantity: Math.min(item.quantity + 1, 99) }
                         : item
                 );
@@ -29,6 +30,8 @@ export const CartProvider = ({ children }) => {
                 name: product.name,
                 image: product.image,
                 price: Number(product.price),
+                variantId,
+                source: product.source || 'local',
                 quantity: 1,
             };
             return [...prev, cartProduct];

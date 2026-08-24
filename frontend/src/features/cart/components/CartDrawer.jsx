@@ -33,6 +33,7 @@ const CartDrawer = () => {
     <Modal
       isOpen={isCartOpen}
       onClose={closeCart}
+      className="cart-modal"
       title={
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text)' }}>
           Your Cart <span className="cart-count-badge" style={{ background: 'var(--clr-primary)', color: '#000', padding: '2px 8px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 'bold' }}>{totalCount}</span>

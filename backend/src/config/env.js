@@ -59,6 +59,10 @@ export const config = Object.freeze({
   shopify: {
     storeDomain: process.env.SHOPIFY_STORE_DOMAIN || '',
     storefrontAccessToken: process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN || '',
+    adminAccessToken: process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '',
+    apiVersion: process.env.SHOPIFY_API_VERSION || '2025-01',
+    syncOnStart: process.env.SHOPIFY_SYNC_ON_START === 'true',
+    syncIntervalMs: toInteger(process.env.SHOPIFY_SYNC_INTERVAL_MS, 0, { min: 0 }),
   },
 });
 
@@ -79,7 +83,7 @@ export const validateEnv = () => {
     throw new Error('JWT_SECRET must be at least 32 characters long');
   }
 
-  if (config.isProduction && config.jwt.secret === defaultDevSecret) {
+  if (config.isProduction && (config.jwt.secret === defaultDevSecret || config.jwt.secret.includes('replace_with'))) {
     throw new Error('JWT_SECRET must be changed before production startup');
   }
 };

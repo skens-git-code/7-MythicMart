@@ -9,11 +9,13 @@ export const loader = async ({ request }) => {
   const products = await listProducts(admin, {
     first: 24,
     query: url.searchParams.get("q"),
+    after: url.searchParams.get("after"),
   });
 
   return {
     products: products.nodes,
     hasNextPage: products.pageInfo.hasNextPage,
+    nextCursor: products.pageInfo.endCursor || "",
     search: url.searchParams.get("q") || "",
   };
 };
@@ -27,7 +29,7 @@ function formatPrice(price) {
 }
 
 export default function Index() {
-  const { products, hasNextPage, search } = useLoaderData();
+  const { products, hasNextPage, nextCursor, search } = useLoaderData();
 
   return (
     <s-page heading="MythicMart catalog">
@@ -99,7 +101,7 @@ export default function Index() {
           </s-stack>
           {hasNextPage && (
             <s-banner tone="info">
-              Showing the first 24 products. Use search to narrow the catalog.
+              Showing 24 products. <a href={`/app?q=${encodeURIComponent(search)}&after=${encodeURIComponent(nextCursor)}`}>Load more</a>.
             </s-banner>
           )}
         </s-section>

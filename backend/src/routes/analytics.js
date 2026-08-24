@@ -10,31 +10,19 @@ import { asyncHandler, sendSuccess } from '../utils/apiResponse.js';
 const router = Router();
 
 const fallbackSummary = {
-  revenue: 184600,
-  orders: 3482,
-  users: 28900,
-  products: 128,
-  reviews: 642,
-  conversionRate: 6.8,
-  inventoryHealth: 94,
-  lowStockProducts: 5,
+  revenue: 0,
+  orders: 0,
+  users: 0,
+  products: 0,
+  reviews: 0,
+  conversionRate: 0,
+  inventoryHealth: 100,
+  lowStockProducts: 0,
   orderStatus: {
-    pending: 8,
-    confirmed: 14,
-    packed: 6,
-    shipped: 21,
-    delivered: 128,
-    cancelled: 3,
-    returned: 2,
+    pending: 0, confirmed: 0, packed: 0, shipped: 0, delivered: 0, cancelled: 0, returned: 0,
   },
   series: [
-    { label: 'Mon', value: 42 },
-    { label: 'Tue', value: 58 },
-    { label: 'Wed', value: 74 },
-    { label: 'Thu', value: 69 },
-    { label: 'Fri', value: 88 },
-    { label: 'Sat', value: 96 },
-    { label: 'Sun', value: 81 },
+
   ],
 };
 

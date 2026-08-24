@@ -1,6 +1,6 @@
 const PRODUCTS_QUERY = `#graphql
-  query MythicMartProducts($first: Int!, $query: String) {
-    products(first: $first, query: $query, sortKey: TITLE) {
+  query MythicMartProducts($first: Int!, $query: String, $after: String) {
+    products(first: $first, after: $after, query: $query, sortKey: TITLE) {
       nodes {
         id
         title
@@ -17,16 +17,17 @@ const PRODUCTS_QUERY = `#graphql
           maxVariantPrice { amount currencyCode }
         }
       }
-      pageInfo { hasNextPage }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `;
 
-export async function listProducts(admin, { first = 24, query = null } = {}) {
+export async function listProducts(admin, { first = 24, query = null, after = null } = {}) {
   const response = await admin.graphql(PRODUCTS_QUERY, {
     variables: {
       first: Math.min(Math.max(Number(first) || 24, 1), 100),
       query: query?.trim() || null,
+      after: after || null,
     },
   });
   const payload = await response.json();

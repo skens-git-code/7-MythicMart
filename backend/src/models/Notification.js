@@ -24,6 +24,7 @@ const notificationSchema = new mongoose.Schema(
       enum: ['order', 'wishlist', 'security', 'support', 'promotion'],
       default: 'order',
     },
+    priority: { type: String, enum: ['low', 'normal', 'high', 'urgent'], default: 'normal' },
     readAt: {
       type: Date,
       default: null,
@@ -45,6 +46,7 @@ const notificationSchema = new mongoose.Schema(
 
 notificationSchema.index({ user: 1, readAt: 1, createdAt: -1 });
 notificationSchema.index({ createdAt: -1 });
+notificationSchema.index({ user: 1, readAt: 1, priority: 1 });
 
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;

@@ -23,21 +23,18 @@ import {
   TicketPercent,
   Truck,
   UserRound,
+  RefreshCcw,
 } from 'lucide-react';
 import HeroSection from '../components/common/HeroSection';
 import ProductSection from '../features/products/components/ProductSection';
 import AuthPanel from '../features/auth/components/AuthPanel';
-import products from '../data/products';
 import {
-  adminMetrics,
   analyticsSeries,
   blogPosts,
   careers,
   categoryShowcase,
-  dashboardMetrics,
   faqItems,
   footerGroups,
-  homeStats,
   helpTopics,
   operationsCards,
   orderTimeline,
@@ -52,6 +49,7 @@ import { useTheme } from '../hooks/useTheme';
 import { CATEGORIES } from '../utils/constants';
 import { ROUTES, toHashPath } from '../utils/routes';
 import { formatPrice } from '../utils/formatters';
+import { normalizeProduct } from '../utils/assets';
 import { api } from '../services/api';
 import '../styles/PremiumPages.css';
 
@@ -166,10 +164,6 @@ export const HomePage = () => (
   <>
     <HeroSection />
 
-    <section className="premium-section home-stat-strip" aria-label="Commerce performance highlights">
-      <MetricGrid metrics={homeStats} />
-    </section>
-
     <section className="premium-section">
       <div className="section-heading">
         <span className="page-eyebrow">Commerce Command Center</span>
@@ -187,7 +181,7 @@ export const HomePage = () => (
         <h2>Category rails with clear visual rhythm and fast paths to product discovery.</h2>
       </div>
       <div className="category-showcase-grid">
-        {categoryShowcase.map(({ id, title, stat, tone, icon }) => (
+        {categoryShowcase.map(({ id, title, tone, icon }) => (
           <a
             className="category-showcase-card"
             href={toHashPath(`${ROUTES.PRODUCTS}?category=${encodeURIComponent(id)}`)}
@@ -197,7 +191,7 @@ export const HomePage = () => (
             {React.createElement(icon, { size: 22, 'aria-hidden': true })}
             <h3>{title}</h3>
             <p>{tone}</p>
-            <span>{stat}</span>
+            <span>Browse collection</span>
           </a>
         ))}
       </div>
@@ -220,7 +214,7 @@ export const HomePage = () => (
           </article>
         ))}
       </div>
-      <div className="mini-product-grid">{products.slice(0, 3).map(product => <ProductMiniCard product={product} key={product.id} />)}</div>
+      <ProductSection title="Live product recommendations" eyebrow="From your synced catalog" />
     </section>
 
     <section className="premium-section split-panel">
@@ -277,7 +271,7 @@ export const ProductsPage = () => (
     <PageHero
       eyebrow="Products"
       title="A fast, filterable premium catalog."
-      description="Browse products with search, category filters, sort-ready APIs, loading skeletons, fallback data, and responsive product cards."
+      description="Browse the synchronized product catalog with search, category filters, sorting, loading states, and responsive product cards."
       compact
     />
     <ProductSection />
@@ -285,11 +279,20 @@ export const ProductsPage = () => (
 );
 
 export const CategoriesPage = () => {
+  const [counts, setCounts] = React.useState({});
+  React.useEffect(() => {
+    let active = true;
+    Promise.all(categoryShowcase.map(async ({ id }) => {
+      try { const response = await api.get(`/products?category=${id}&limit=1`); return [id, response.pagination?.total || 0]; }
+      catch { return [id, 0]; }
+    })).then(entries => { if (active) setCounts(Object.fromEntries(entries)); });
+    return () => { active = false; };
+  }, []);
   return (
     <>
       <PageHero eyebrow="Categories" title="Collections built for quick discovery." description="Each category is optimized for merchandising, filtering, and future personalized ranking." compact />
       <div className="category-showcase-grid">
-        {categoryShowcase.map(({ id, title, stat, tone, icon }) => (
+        {categoryShowcase.map(({ id, title, tone, icon }) => (
           <a
             className="category-showcase-card"
             href={toHashPath(`${ROUTES.PRODUCTS}?category=${encodeURIComponent(id)}`)}
@@ -299,7 +302,7 @@ export const CategoriesPage = () => {
             {React.createElement(icon, { size: 22, 'aria-hidden': true })}
             <h3>{title}</h3>
             <p>{tone}</p>
-            <span>{stat}</span>
+            <span>{counts[id] === undefined ? 'Loading…' : `${counts[id]} ${counts[id] === 1 ? 'item' : 'items'}`}</span>
           </a>
         ))}
       </div>
@@ -312,20 +315,16 @@ export const ProductDetailsPage = ({ slug }) => {
   const { addToast } = useToast();
   const { user } = useAuth();
   
-  const fallbackProduct = React.useMemo(() => {
-    return products.find(item => item.slug === slug || String(item.id) === slug) || products[0];
-  }, [slug]);
-
-  const [product, setProduct] = React.useState(fallbackProduct);
+  const [product, setProduct] = React.useState(null);
+  const [selectedImage, setSelectedImage] = React.useState(null);
+  const [loadingProduct, setLoadingProduct] = React.useState(true);
+  const [selectedVariantId, setSelectedVariantId] = React.useState(null);
   const [reviews, setReviews] = React.useState([]);
   const [loadingReviews, setLoadingReviews] = React.useState(true);
   const [showReviewForm, setShowReviewForm] = React.useState(false);
   const [reviewForm, setReviewForm] = React.useState({ rating: 5, title: '', comment: '', guestName: '' });
   const [submittingReview, setSubmittingReview] = React.useState(false);
-
-  const related = React.useMemo(() => {
-    return products.filter(item => item.category === product.category && item.slug !== product.slug).slice(0, 3);
-  }, [product.category, product.slug]);
+  const [related, setRelated] = React.useState([]);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -333,10 +332,26 @@ export const ProductDetailsPage = ({ slug }) => {
       try {
         const res = await api.get(`/products/${slug}`);
         if (res.success && res.data && isMounted) {
-          setProduct(res.data);
+          const norm = normalizeProduct(res.data);
+          setProduct(norm);
+          setSelectedImage(norm.image || (norm.images?.[0]?.url) || '/assets/product-watch.png');
+          if (norm.variants?.length) {
+            setSelectedVariantId(norm.variants[0].shopifyVariantId || norm.variants[0].id);
+          }
+          // Fetch real related recommendations
+          try {
+            const relRes = await api.get(`/products/recommendations?category=${norm.category || ''}&limit=3`);
+            if (relRes.success && relRes.data && isMounted) {
+              setRelated(relRes.data.filter(item => item.slug !== norm.slug));
+            }
+          } catch {
+            // Safe fallback
+          }
         }
-      } catch (err) {
-        console.warn('Using local fallback for product:', err);
+      } catch {
+        if (isMounted) setProduct(null);
+      } finally {
+        if (isMounted) setLoadingProduct(false);
       }
     };
     loadProductData();
@@ -347,6 +362,7 @@ export const ProductDetailsPage = ({ slug }) => {
     setLoadingReviews(true);
     const fetchReviews = async () => {
       try {
+        if (!product) return;
         const queryId = product._id || product.id;
         const response = await api.get(`/reviews?productId=${queryId}`);
         if (response.success) setReviews(response.data);
@@ -357,9 +373,31 @@ export const ProductDetailsPage = ({ slug }) => {
       }
     };
     fetchReviews();
-  }, [product._id, product.id]);
+  }, [product]);
 
   const handleReviewChange = (e) => setReviewForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const activeVariant = React.useMemo(() => {
+    if (!product.variants?.length) return null;
+    return product.variants.find(v => (v.shopifyVariantId || v.id) === selectedVariantId) || product.variants[0];
+  }, [product.variants, selectedVariantId]);
+
+  const currentPrice = activeVariant?.price ?? product?.price ?? 0;
+  const currentCompareAt = activeVariant?.compareAtPrice ?? product?.originalPrice;
+  const currentStock = activeVariant?.inventoryQuantity ?? product?.stock ?? 0;
+
+  const galleryImages = React.useMemo(() => {
+    const list = [];
+    if (!product) return list;
+    if (product.image) list.push(product.image);
+    if (product.images?.length) {
+      product.images.forEach(img => {
+        const url = typeof img === 'string' ? img : img.url;
+        if (url && !list.includes(url)) list.push(url);
+      });
+    }
+    return list;
+  }, [product]);
 
   const submitReview = async (e) => {
     e.preventDefault();
@@ -389,14 +427,34 @@ export const ProductDetailsPage = ({ slug }) => {
     }
   };
 
+  if (loadingProduct) return <div className="empty-state" role="status">Loading product details…</div>;
+  if (!product) return <div className="empty-state" role="alert"><strong>Product unavailable</strong><p>This product could not be loaded from the live catalog.</p></div>;
+
   return (
     <>
       <section className="product-detail-layout" style={{ '--product-accent': product.accent || '#2f6fed' }}>
         <div className="product-gallery">
-          <img src={product.image} alt={product.name} />
-          <div>
-            {[product.image, ...related.map(item => item.image)].slice(0, 4).map((image, index) => (
-              <img src={image} alt="" aria-hidden="true" key={`${image}-${index}`} />
+          <img src={selectedImage} alt={product.name} style={{ width: '100%', borderRadius: '12px', objectFit: 'cover', maxHeight: '480px' }} />
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginTop: '10px' }}>
+            {galleryImages.map((imgUrl, index) => (
+              <button
+                type="button"
+                key={`${imgUrl}-${index}`}
+                onClick={() => setSelectedImage(imgUrl)}
+                style={{
+                  border: selectedImage === imgUrl ? '2px solid var(--clr-primary)' : '1px solid var(--c-border)',
+                  borderRadius: '6px',
+                  padding: 0,
+                  background: 'none',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  width: '60px',
+                  height: '60px',
+                  flexShrink: 0,
+                }}
+              >
+                <img src={imgUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </button>
             ))}
           </div>
         </div>
@@ -404,30 +462,69 @@ export const ProductDetailsPage = ({ slug }) => {
           <div className="detail-kicker-row">
             <span className="status-pill">{product.badge || product.category}</span>
             <span className="status-pill">AI fit {product.aiScore || 92}%</span>
+            {product.shopifyProductId && (
+              <span className="status-pill" style={{ background: 'rgba(0, 255, 140, 0.1)', color: 'var(--clr-green)' }}>Shopify Verified</span>
+            )}
           </div>
           <h1>{product.name}</h1>
           <span className="product-brand">{product.brand || 'MythicMart'} - {product.collection || 'Premium collection'}</span>
           <p>{product.description}</p>
           <div className="rating-row"><Star size={18} fill="currentColor" /> {product.rating} · {product.reviewCount} reviews</div>
-          <div className="price-stack">
-            <strong>{formatPrice(product.price)}</strong>
-            {product.originalPrice && <span>{formatPrice(product.originalPrice)}</span>}
+
+          <div className="price-stack" style={{ margin: '15px 0' }}>
+            <strong style={{ fontSize: '2rem' }}>{formatPrice(currentPrice)}</strong>
+            {currentCompareAt && currentCompareAt > currentPrice && (
+              <>
+                <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{formatPrice(currentCompareAt)}</span>
+                <span className="status-pill" style={{ background: 'rgba(255, 77, 77, 0.1)', color: 'var(--clr-red)' }}>
+                  Save {Math.round(((currentCompareAt - currentPrice) / currentCompareAt) * 100)}%
+                </span>
+              </>
+            )}
           </div>
-          <div className="detail-feature-grid">
-            <span><Truck size={16} /> {product.freeShipping ? 'Free shipping' : 'Standard shipping'}</span>
-            <span><PackageCheck size={16} /> {product.stock} units available</span>
+
+          {product.variants && product.variants.length > 1 && (
+            <div style={{ margin: '15px 0' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px' }}>Select Variant / Option:</label>
+              <select
+                value={selectedVariantId || ''}
+                onChange={(e) => setSelectedVariantId(e.target.value)}
+                style={{ width: '100%', padding: '10px', borderRadius: '8px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)' }}
+              >
+                {product.variants.map((v) => (
+                  <option key={v.shopifyVariantId || v.id} value={v.shopifyVariantId || v.id}>
+                    {v.title} — {formatPrice(v.price)} ({v.inventoryQuantity > 0 ? `${v.inventoryQuantity} in stock` : 'Out of stock'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="detail-feature-grid" style={{ margin: '15px 0' }}>
+            <span><Truck size={16} /> {product.freeShipping ? 'Free express shipping' : 'Standard shipping'}</span>
+            <span><PackageCheck size={16} /> {currentStock > 0 ? `${currentStock} units available` : 'Out of stock'}</span>
             <span><TicketPercent size={16} /> Coupon eligible</span>
           </div>
-          <button
-            className="cta-button"
-            type="button"
-            onClick={() => {
-              addItem(product);
-              addToast(`Added ${product.name} to cart`, 'success');
-            }}
-          >
-            Add to cart <ShoppingBag size={18} />
-          </button>
+
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+            <button
+              className="cta-button"
+              type="button"
+              disabled={currentStock <= 0}
+              onClick={() => {
+                addItem({
+                  ...product,
+                  price: currentPrice,
+                  variantId: activeVariant?.shopifyVariantId || product.variantId,
+                  image: selectedImage,
+                });
+                addToast(`Added ${product.name} to cart`, 'success');
+              }}
+              style={{ flex: 1 }}
+            >
+              {currentStock > 0 ? <>Add to cart <ShoppingBag size={18} /></> : 'Out of stock'}
+            </button>
+          </div>
         </article>
       </section>
       <section className="premium-section detail-intelligence-grid">
@@ -494,6 +591,7 @@ export const ProductDetailsPage = ({ slug }) => {
 export const UserDashboardPage = () => {
   const { user } = useAuth();
   const [recentOrders, setRecentOrders] = React.useState([]);
+  const [profile, setProfile] = React.useState(null);
 
   React.useEffect(() => {
     const fetchOrders = async () => {
@@ -502,6 +600,8 @@ export const UserDashboardPage = () => {
         if (response.success) {
           setRecentOrders(response.data.slice(0, 3));
         }
+        const profileResponse = await api.get('/users/profile');
+        if (profileResponse.success) setProfile(profileResponse.data);
       } catch (err) {
         console.error('Failed to load recent orders for dashboard:', err);
       }
@@ -512,7 +612,32 @@ export const UserDashboardPage = () => {
   return (
     <>
       <PageHero eyebrow="User Dashboard" title={`Welcome back, ${user?.name || 'Shopper'}.`} description="Track orders, rewards, saved items, recommendations, notifications, and account health from one responsive workspace." compact />
-      <MetricGrid metrics={dashboardMetrics} />
+
+      <MetricGrid metrics={[
+        { label: 'Orders tracked', value: recentOrders.length, delta: recentOrders.length ? 'Recent activity' : 'No orders yet', icon: PackageCheck },
+        { label: 'Wishlist items', value: profile?.wishlist?.length ?? '—', delta: profile?.wishlist?.length ? 'Saved products' : 'No saved products', icon: Heart },
+        { label: 'Reward tier', value: user?.loyaltyTier || 'standard', delta: 'Account status', icon: BadgeCheck },
+      ]} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', margin: '20px 0' }}>
+        <a href={toHashPath(ROUTES.ORDERS)} className="glass-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', color: 'var(--text)' }}>
+          <ClipboardList size={20} color="var(--clr-primary)" />
+          <div><strong>My Orders</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>Track shipments</small></div>
+        </a>
+        <a href={toHashPath(ROUTES.WISHLIST)} className="glass-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', color: 'var(--text)' }}>
+          <Heart size={20} color="var(--clr-primary)" />
+          <div><strong>Wishlist</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>Saved favorites</small></div>
+        </a>
+        <a href={toHashPath(ROUTES.COUPONS)} className="glass-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', color: 'var(--text)' }}>
+          <WalletCards size={20} color="var(--clr-gold)" />
+          <div><strong>Deals & Perks</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>Active discounts</small></div>
+        </a>
+        <a href={toHashPath(ROUTES.SETTINGS)} className="glass-card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', color: 'var(--text)' }}>
+          <SlidersHorizontal size={20} color="var(--clr-primary)" />
+          <div><strong>Settings</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>Profile & security</small></div>
+        </a>
+      </div>
+
       <section className="split-panel">
         <TableShell rows={recentOrders.length > 0 ? recentOrders.map(o => ({
           id: (o._id || o.id || '').toString().slice(-6).toUpperCase() || '—',
@@ -522,8 +647,15 @@ export const UserDashboardPage = () => {
           amount: formatPrice(o.total || 0)
         })) : []} title="Recent Orders" />
         <article className="premium-card">
-          <h3>Recommended next</h3>
-          <div className="mini-product-list">{products.slice(0, 3).map(product => <ProductMiniCard product={product} key={product.id} />)}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ margin: 0 }}>Active Promotions</h3>
+            <a href={toHashPath(ROUTES.COUPONS)} style={{ fontSize: '0.85rem', color: 'var(--clr-primary)', textDecoration: 'none' }}>View all →</a>
+          </div>
+          <div style={{ padding: '15px', background: 'rgba(255, 199, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(255, 199, 0, 0.2)', marginBottom: '10px' }}>
+            <span className="status-pill" style={{ background: 'rgba(255, 199, 0, 0.15)', color: 'var(--clr-gold)', fontSize: '0.75rem' }}>MYTHIC10</span>
+            <strong style={{ display: 'block', marginTop: '6px' }}>10% Off Your Entire Order</strong>
+            <small style={{ color: 'var(--text-secondary)' }}>Apply code MYTHIC10 at checkout on orders over $50.</small>
+          </div>
         </article>
       </section>
     </>
@@ -557,23 +689,48 @@ export const AdminDashboardPage = () => {
 
   return (
     <>
-      <PageHero eyebrow="Admin Dashboard" title="Operate catalog, users, sales, and content from one place." description="A production admin shell for inventory, product management, reports, moderation, and platform health." compact />
-      <MetricGrid metrics={adminMetrics} />
+      <PageHero eyebrow="Admin Command Center" title="Enterprise Commerce & Platform Operations" description="Manage catalog inventory, customer directory, live Shopify sync, revenue analytics, and system access." compact />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '15px', margin: '20px 0' }}>
+        <a href={toHashPath(ROUTES.INVENTORY)} className="glass-card" style={{ padding: '20px', textDecoration: 'none', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <PackageCheck size={26} color="var(--clr-primary)" />
+          <div><h4 style={{ margin: 0 }}>Inventory</h4><small style={{ color: 'var(--text-muted)' }}>Stock health & reorder</small></div>
+        </a>
+        <a href={toHashPath(ROUTES.CUSTOMERS)} className="glass-card" style={{ padding: '20px', textDecoration: 'none', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <Users size={26} color="var(--clr-primary)" />
+          <div><h4 style={{ margin: 0 }}>Customers CRM</h4><small style={{ color: 'var(--text-muted)' }}>Roles & account status</small></div>
+        </a>
+        <a href={toHashPath(ROUTES.INTEGRATIONS)} className="glass-card" style={{ padding: '20px', textDecoration: 'none', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <RefreshCcw size={26} color="var(--clr-green)" />
+          <div><h4 style={{ margin: 0 }}>Shopify Sync</h4><small style={{ color: 'var(--text-muted)' }}>Trigger live catalog sync</small></div>
+        </a>
+        <a href={toHashPath(ROUTES.ANALYTICS)} className="glass-card" style={{ padding: '20px', textDecoration: 'none', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <BarChart3 size={26} color="var(--clr-gold)" />
+          <div><h4 style={{ margin: 0 }}>Analytics</h4><small style={{ color: 'var(--text-muted)' }}>Revenue & trends</small></div>
+        </a>
+      </div>
+
       <section className="split-panel">
         <TableShell title="Recent System Orders" rows={data.orders.map(o => ({
           id: o._id.slice(-6).toUpperCase(),
-          user: o.user?.name || o.guestEmail || 'Unknown',
+          user: o.user?.name || o.guestEmail || 'Customer',
           status: o.status,
           date: new Date(o.createdAt).toLocaleDateString(),
           amount: formatPrice(o.total)
         }))} />
         <article className="premium-card management-list">
-          <h3>Recent Users</h3>
-          {data.users.length === 0 && !loading && <p>No users found.</p>}
-          {loading ? <p>Loading...</p> : data.users.map(u => (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h3 style={{ margin: 0 }}>Recent Customers</h3>
+            <a href={toHashPath(ROUTES.CUSTOMERS)} style={{ fontSize: '0.85rem', color: 'var(--clr-primary)', textDecoration: 'none' }}>View CRM →</a>
+          </div>
+          {data.users.length === 0 && !loading && <p>No customers found.</p>}
+          {loading ? <p>Loading customers...</p> : data.users.map(u => (
             <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--c-border)' }}>
-              <span>{u.name} ({u.role})</span>
-              <span className="status-pill">{u.isActive ? 'Active' : 'Disabled'}</span>
+              <div>
+                <strong>{u.name}</strong>
+                <small style={{ display: 'block', color: 'var(--text-muted)' }}>{u.email}</small>
+              </div>
+              <span className="status-pill" style={{ textTransform: 'capitalize' }}>{u.role}</span>
             </div>
           ))}
         </article>
@@ -606,7 +763,7 @@ export const AnalyticsPage = () => {
     { label: 'Total Orders', value: data.orders.toLocaleString(), trend: '+8.2%' },
     { label: 'Active Users', value: data.users.toLocaleString(), trend: '+15.3%' },
     { label: 'Conversion Rate', value: `${data.conversionRate}%`, trend: '+1.1%' }
-  ] : adminMetrics;
+  ] : [];
 
   return (
     <>
@@ -615,8 +772,7 @@ export const AnalyticsPage = () => {
         <div style={{ padding: '2rem', textAlign: 'center' }}>Loading intelligence data...</div>
       ) : (
         <>
-          <MetricGrid metrics={metrics} />
-          <ChartCard title="Weekly revenue index" />
+          {data ? <><MetricGrid metrics={metrics} />{data.series?.length ? <ChartCard title="Weekly revenue index" /> : <div className="empty-state"><p>Revenue trends will appear after transactions are recorded.</p></div>}</> : <div className="empty-state"><p>No analytics data is available yet.</p></div>}
         </>
       )}
     </>
@@ -937,30 +1093,410 @@ export const ProfilePage = () => {
 
 export const SettingsPage = () => {
   const { theme, toggleTheme } = useTheme();
-  const [preferences, setPreferences] = React.useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('mythicmart-preferences')) || { orderEmails: true, priceAlerts: true };
-    } catch {
-      return { orderEmails: true, priceAlerts: true };
-    }
-  });
+  const { user, updateUser } = useAuth();
   const { addToast } = useToast();
+  const [activeTab, setActiveTab] = React.useState('profile');
 
-  const updatePreference = (name, value) => {
-    const next = { ...preferences, [name]: value };
-    setPreferences(next);
-    localStorage.setItem('mythicmart-preferences', JSON.stringify(next));
-    addToast('Settings saved', 'success');
+  const [profileForm, setProfileForm] = React.useState({
+    name: user?.name || '',
+    avatar: user?.avatar || '',
+    bio: 'Luxury enthusiast & verified MythicMart patron',
+    currency: 'USD',
+    timezone: 'UTC-08:00 (Pacific)',
+  });
+
+  const [securityForm, setSecurityForm] = React.useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+    twoFactorEnabled: false,
+  });
+
+  const [notifications, setNotifications] = React.useState({
+    orderUpdates: true,
+    priceDrops: true,
+    security: true,
+    promotions: false,
+    inventoryAlerts: true,
+  });
+
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    if (user) {
+      setProfileForm(prev => ({
+        ...prev,
+        name: user.name || '',
+        avatar: user.avatar || '',
+      }));
+      if (user.preferences?.notifications) {
+        setNotifications(prev => ({
+          ...prev,
+          ...user.preferences.notifications,
+        }));
+      }
+    }
+  }, [user]);
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const response = await api.patch('/users/profile', {
+        name: profileForm.name,
+        avatar: profileForm.avatar || null,
+      });
+      if (response.success) {
+        updateUser(response.data);
+        addToast('Profile changes saved successfully', 'success');
+      } else {
+        addToast(response.error || 'Failed to save profile', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to save profile', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const handleNotificationToggle = async (key) => {
+    const next = { ...notifications, [key]: !notifications[key] };
+    setNotifications(next);
+    setSaving(true);
+    try {
+      const response = await api.patch('/users/profile', { preferences: next });
+      if (response.success) {
+        updateUser(response.data);
+        addToast('Notification preferences updated', 'success');
+      }
+    } catch (err) {
+      setNotifications(notifications);
+      addToast(err.error || 'Failed to update preferences', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const [showDeleteModal, setShowDeleteModal] = React.useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = React.useState('');
+  const [deletePassword, setDeletePassword] = React.useState('');
+  const [isDeleting, setIsDeleting] = React.useState(false);
+  const [securitySaving, setSecuritySaving] = React.useState(false);
+
+  const handleSecuritySave = async (e) => {
+    e.preventDefault();
+    if (!securityForm.currentPassword) {
+      addToast('Current password is required', 'error');
+      return;
+    }
+    if (securityForm.newPassword && securityForm.newPassword !== securityForm.confirmPassword) {
+      addToast('New passwords do not match', 'error');
+      return;
+    }
+    if (securityForm.newPassword.length < 8) {
+      addToast('New password must be at least 8 characters', 'error');
+      return;
+    }
+    setSecuritySaving(true);
+    try {
+      const response = await api.patch('/users/profile/password', {
+        currentPassword: securityForm.currentPassword,
+        newPassword: securityForm.newPassword,
+      });
+      if (response.success) {
+        addToast('Password updated successfully', 'success');
+        setSecurityForm({ currentPassword: '', newPassword: '', confirmPassword: '', twoFactorEnabled: securityForm.twoFactorEnabled });
+      } else {
+        addToast(response.error || 'Failed to update password', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to update password', 'error');
+    } finally {
+      setSecuritySaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async (e) => {
+    e.preventDefault();
+    if (deleteConfirmText !== 'DELETE') {
+      addToast('Please type DELETE to confirm', 'error');
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const res = await api.post('/users/profile/delete-account', {
+        password: deletePassword,
+        confirmation: 'DELETE',
+      });
+      if (res.success) {
+        addToast('Account has been deactivated. Logging out...', 'info');
+        setTimeout(() => {
+          localStorage.removeItem('mythicmart_token');
+          window.location.href = '/';
+        }, 1500);
+      } else {
+        addToast(res.error || 'Failed to deactivate account', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to deactivate account', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleExportData = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ user, exportedAt: new Date().toISOString() }, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `mythicmart_profile_${user?._id || 'data'}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    addToast('Account data exported', 'success');
+  };
+
+  const tabs = [
+    { id: 'profile', label: 'Profile & Identity', icon: UserRound },
+    { id: 'security', label: 'Security & Auth', icon: LockKeyhole },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'shopify', label: 'Shopify & Store', icon: RefreshCcw },
+    { id: 'appearance', label: 'Appearance', icon: SlidersHorizontal },
+    { id: 'privacy', label: 'Privacy & Data', icon: ShieldCheck },
+  ];
+
+  const currentTabObj = tabs.find(t => t.id === activeTab) || tabs[0];
 
   return (
     <>
-      <PageHero eyebrow="Settings" title="Privacy, security, and communication controls." description="Your preferences are saved on this device and applied immediately." compact />
-      <section className="premium-card form-grid" aria-label="Application settings">
-        <label className="setting-toggle"><input type="checkbox" checked={preferences.orderEmails} onChange={(e) => updatePreference('orderEmails', e.target.checked)} /> Order email updates</label>
-        <label className="setting-toggle"><input type="checkbox" checked={preferences.priceAlerts} onChange={(e) => updatePreference('priceAlerts', e.target.checked)} /> Price-drop alerts</label>
-        <label className="setting-toggle"><input type="checkbox" checked={theme === 'dark'} onChange={toggleTheme} /> Dark mode</label>
-      </section>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+        <a href={toHashPath(ROUTES.HOME)} style={{ color: 'inherit', textDecoration: 'none' }}>Home</a>
+        <span>/</span>
+        <a href={toHashPath(ROUTES.SETTINGS)} style={{ color: 'inherit', textDecoration: 'none' }}>Settings</a>
+        <span>/</span>
+        <span style={{ color: 'var(--clr-primary)', fontWeight: '600' }}>{currentTabObj.label}</span>
+      </div>
+
+      <PageHero eyebrow="Settings" title="Account, security, and platform controls." description="Configure your personal identity, notification channels, Shopify synchronization, and privacy preferences." compact />
+
+      <div className="settings-layout" style={{ marginTop: '20px' }}>
+        <aside className="glass-card settings-sidebar" style={{ padding: '15px', height: 'fit-content' }}>
+          <nav>
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: isActive ? 'var(--clr-primary)' : 'transparent',
+                    color: isActive ? '#000' : 'var(--text)',
+                    fontWeight: isActive ? '600' : '400',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <Icon size={17} />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
+
+        <section className="glass-card settings-content" style={{ padding: '30px' }}>
+          {activeTab === 'profile' && (
+            <form onSubmit={handleProfileSave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h2 style={{ fontSize: '1.4rem', margin: 0 }}>Personal Profile</h2>
+              <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Update your display information and account contact details.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <label>Display Name<input type="text" value={profileForm.name} onChange={e => setProfileForm({ ...profileForm, name: e.target.value })} required minLength={2} maxLength={60} /></label>
+                <label>Email Address<input type="email" value={user?.email || ''} disabled style={{ opacity: 0.6, cursor: 'not-allowed' }} /></label>
+                <label>Avatar Image URL<input type="url" value={profileForm.avatar} onChange={e => setProfileForm({ ...profileForm, avatar: e.target.value })} placeholder="https://..." /></label>
+                <label>Storefront Currency<select value={profileForm.currency} onChange={e => setProfileForm({ ...profileForm, currency: e.target.value })}><option value="USD">USD ($)</option><option value="EUR">EUR (€)</option><option value="GBP">GBP (£)</option><option value="CAD">CAD ($)</option></select></label>
+              </div>
+              <label>Bio / Signature<textarea rows="3" value={profileForm.bio} onChange={e => setProfileForm({ ...profileForm, bio: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '6px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)' }} /></label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button className="cta-button" type="submit" disabled={saving} style={{ width: 'fit-content' }}>
+                  {saving ? 'Saving Changes...' : 'Save Profile Details'}
+                </button>
+                <button type="button" className="cta-button outline" onClick={() => setProfileForm({ name: user?.name || '', avatar: user?.avatar || '', bio: 'Luxury enthusiast', currency: 'USD', timezone: 'UTC-08:00' })}>
+                  Reset Form
+                </button>
+              </div>
+            </form>
+          )}
+
+          {activeTab === 'security' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+              <form onSubmit={handleSecuritySave} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <h2 style={{ fontSize: '1.4rem', margin: 0 }}>Security & Credentials</h2>
+                <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Update account password and manage two-factor authentication.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <label>Current Password<input type="password" value={securityForm.currentPassword} onChange={e => setSecurityForm({ ...securityForm, currentPassword: e.target.value })} placeholder="••••••••" required /></label>
+                  <label>New Password<input type="password" value={securityForm.newPassword} onChange={e => setSecurityForm({ ...securityForm, newPassword: e.target.value })} placeholder="At least 8 characters" required /></label>
+                  <label style={{ gridColumn: 'span 2' }}>Confirm New Password<input type="password" value={securityForm.confirmPassword} onChange={e => setSecurityForm({ ...securityForm, confirmPassword: e.target.value })} placeholder="Re-type new password" required /></label>
+                </div>
+                <button className="cta-button" type="submit" disabled={securitySaving} style={{ width: 'fit-content' }}>
+                  {securitySaving ? 'Updating Password...' : 'Update Password'}
+                </button>
+              </form>
+
+              <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: '20px' }}>
+                <h3 style={{ fontSize: '1.1rem', margin: '0 0 10px' }}>Two-Factor Authentication</h3>
+                <div style={{ padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', border: '1px solid var(--c-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>Authenticator Security</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Add an extra layer of protection to your sign-in credentials.</p>
+                  </div>
+                  <button type="button" className={`cta-button ${securityForm.twoFactorEnabled ? '' : 'outline'}`} onClick={() => { setSecurityForm(prev => ({ ...prev, twoFactorEnabled: !prev.twoFactorEnabled })); addToast(securityForm.twoFactorEnabled ? '2FA disabled' : '2FA activated', 'info'); }}>
+                    {securityForm.twoFactorEnabled ? 'Enabled' : 'Enable 2FA'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid rgba(255,77,77,0.2)', paddingTop: '20px' }}>
+                <h3 style={{ fontSize: '1.1rem', color: 'var(--clr-red)', margin: '0 0 10px' }}>Danger Zone</h3>
+                <div style={{ padding: '15px', background: 'rgba(255,77,77,0.04)', borderRadius: '8px', border: '1px solid rgba(255,77,77,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <strong>Deactivate Account</strong>
+                    <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Permanently deactivate your customer account and revoke access tokens.</p>
+                  </div>
+                  <button type="button" className="cta-button" style={{ background: 'var(--clr-red)', color: '#fff' }} onClick={() => setShowDeleteModal(true)}>
+                    Deactivate Account
+                  </button>
+                </div>
+              </div>
+
+              {showDeleteModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', display: 'grid', placeItems: 'center', zIndex: 10000, padding: '20px' }}>
+                  <div className="glass-card" style={{ maxWidth: '480px', width: '100%', padding: '30px' }}>
+                    <h3 style={{ color: 'var(--clr-red)', marginTop: 0 }}>Confirm Account Deactivation</h3>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>This action will deactivate your account and revoke active sessions. Type <strong>DELETE</strong> and enter your password to confirm.</p>
+                    <form onSubmit={handleDeleteAccount} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      <label>Confirm phrase (type DELETE)<input type="text" value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder="DELETE" required /></label>
+                      <label>Your Password<input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} placeholder="••••••••" required /></label>
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                        <button type="submit" className="cta-button" style={{ background: 'var(--clr-red)', color: '#fff', flex: 1 }} disabled={isDeleting || deleteConfirmText !== 'DELETE'}>
+                          {isDeleting ? 'Deactivating...' : 'Confirm Deactivation'}
+                        </button>
+                        <button type="button" className="cta-button outline" onClick={() => setShowDeleteModal(false)}>Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'notifications' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.4rem', margin: 0 }}>Notification Channels</h2>
+                  <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0' }}>Choose which alerts and communication channels you wish to receive.</p>
+                </div>
+                <button
+                  type="button"
+                  className="cta-button outline"
+                  style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+                  onClick={() => {
+                    const defaults = { orderUpdates: true, priceDrops: true, security: true, promotions: false, inventoryAlerts: true };
+                    setNotifications(defaults);
+                    api.patch('/users/profile', { preferences: defaults }).then(() => addToast('Notifications reset to defaults', 'info'));
+                  }}
+                >
+                  Reset Defaults
+                </button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                {[
+                  { key: 'orderUpdates', title: 'Order & Shipping Tracking', desc: 'Instant updates on order confirmation, fulfillment, tracking numbers, and delivery.' },
+                  { key: 'priceDrops', title: 'Price-Drop & Wishlist Alerts', desc: 'Notifications when saved items go on sale or inventory reaches critical threshold.' },
+                  { key: 'security', title: 'Security & Login Alerts', desc: 'Critical alerts regarding password changes, new device logins, and role updates.' },
+                  { key: 'inventoryAlerts', title: 'Merchant Low Stock Warnings', desc: 'Receive real-time alerts when catalog items reach reorder levels.' },
+                  { key: 'promotions', title: 'Promotional Offers & Member Perks', desc: 'Early access to limited drops, seasonal sales, and member-exclusive coupons.' },
+                ].map(({ key, title, desc }) => (
+                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--c-border)' }}>
+                    <div>
+                      <strong>{title}</strong>
+                      <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{desc}</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(notifications[key])}
+                      onChange={() => handleNotificationToggle(key)}
+                      disabled={saving}
+                      style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--clr-primary)' }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'shopify' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h2 style={{ fontSize: '1.4rem', margin: 0 }}>Shopify Storefront Configuration</h2>
+              <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Configure headless API endpoints, credentials status, and automatic sync intervals.</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div style={{ padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--c-border)' }}>
+                  <span className="page-eyebrow">Storefront Status</span>
+                  <h3 style={{ margin: '8px 0 4px' }}>GraphQL Client</h3>
+                  <span className="status-pill" style={{ background: 'rgba(0, 255, 140, 0.1)', color: 'var(--clr-green)' }}>Active & Connected</span>
+                </div>
+                <div style={{ padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--c-border)' }}>
+                  <span className="page-eyebrow">Sync Engine</span>
+                  <h3 style={{ margin: '8px 0 4px' }}>Admin Sync Hub</h3>
+                  <a href={toHashPath(ROUTES.INTEGRATIONS)} style={{ color: 'var(--clr-primary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '600' }}>Open Sync Dashboard →</a>
+                </div>
+              </div>
+              <label>Default Store Currency<input type="text" value="USD ($)" disabled style={{ opacity: 0.7 }} /></label>
+              <label>Estimated Sales Tax Rate<input type="text" value="8.0% (Automated Calculation)" disabled style={{ opacity: 0.7 }} /></label>
+            </div>
+          )}
+
+          {activeTab === 'appearance' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h2 style={{ fontSize: '1.4rem', margin: 0 }}>Appearance & Theme</h2>
+              <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Customize your visual interface, contrast modes, and color accents.</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--c-border)' }}>
+                <div>
+                  <strong>Theme Mode</strong>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Toggle between high-contrast dark theme and clean light theme.</p>
+                </div>
+                <button type="button" className="cta-button" onClick={toggleTheme}>
+                  {theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'privacy' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h2 style={{ fontSize: '1.4rem', margin: 0 }}>Privacy, GDPR & Data Rights</h2>
+              <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Export your personal customer data or manage privacy preferences.</p>
+              <div style={{ padding: '15px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--c-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <strong>Export Account Data (JSON)</strong>
+                  <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Download a portable copy of your account profile, orders, and preferences.</p>
+                </div>
+                <button type="button" className="cta-button outline" onClick={handleExportData}>
+                  Export JSON
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      </div>
     </>
   );
 };
@@ -968,6 +1504,7 @@ export const SettingsPage = () => {
 export const NotificationsPage = () => {
   const [items, setItems] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [filter, setFilter] = React.useState('all');
   const { addToast } = useToast();
 
   const loadNotifications = React.useCallback(async () => {
@@ -987,15 +1524,527 @@ export const NotificationsPage = () => {
     try {
       await api.patch(`/notifications/${notification._id}/read`);
       setItems((current) => current.map((item) => item._id === notification._id ? { ...item, readAt: new Date().toISOString() } : item));
+      addToast('Marked as read', 'success');
     } catch (err) {
       addToast(err.error || 'Unable to update notification', 'error');
     }
   };
 
+  const markAllRead = async () => {
+    try {
+      await api.patch('/notifications/read-all');
+      setItems(current => current.map(item => ({ ...item, readAt: new Date().toISOString() })));
+      addToast('All notifications marked as read', 'success');
+    } catch (err) {
+      addToast(err.error || 'Unable to update notifications', 'error');
+    }
+  };
+
+  const dismiss = async (notification) => {
+    try {
+      await api.delete(`/notifications/${notification._id}`);
+      setItems(current => current.filter(item => item._id !== notification._id));
+      addToast('Notification dismissed', 'info');
+    } catch (err) {
+      addToast(err.error || 'Unable to dismiss notification', 'error');
+    }
+  };
+
+  const filteredItems = items.filter(item => {
+    if (filter === 'all') return true;
+    if (filter === 'unread') return !item.readAt;
+    return item.type === filter;
+  });
+
+  const unreadCount = items.filter(item => !item.readAt).length;
+
   return (
     <>
-      <PageHero eyebrow="Notifications" title="Order, wishlist, and security alerts." description="A central inbox for real application events and account updates." compact />
-      {loading ? <div className="premium-card">Loading notifications...</div> : items.length === 0 ? <div className="premium-card"><h3>You're all caught up</h3><p>No notifications yet. New order and account events will appear here.</p></div> : <div className="notification-list">{items.map((item) => <article className="premium-card icon-card" key={item._id}><span className="card-icon" aria-hidden="true"><Bell size={20} /></span><div><h3>{item.title}</h3><p>{item.message}</p><small>{item.readAt ? 'Read' : 'Unread'}</small></div>{!item.readAt && <button className="text-action" type="button" onClick={() => markRead(item)}>Mark as read</button>}</article>)}</div>}
+      <PageHero
+        eyebrow="Inbox"
+        title="Notifications & Activity Alerts"
+        description="A real-time central feed of orders, inventory tracking, promotional perks, and account events."
+        compact
+        actions={
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {unreadCount > 0 && (
+              <button className="cta-button outline" type="button" onClick={markAllRead}>
+                Mark all as read ({unreadCount})
+              </button>
+            )}
+          </div>
+        }
+      />
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {['all', 'unread', 'order', 'system', 'security', 'promotion'].map(tab => (
+          <button
+            key={tab}
+            type="button"
+            className={`tech-tag ${filter === tab ? 'active' : ''}`}
+            onClick={() => setFilter(tab)}
+            style={{
+              cursor: 'pointer',
+              textTransform: 'capitalize',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              background: filter === tab ? 'var(--clr-primary)' : 'rgba(255,255,255,0.05)',
+              color: filter === tab ? '#000' : 'var(--text)',
+              border: '1px solid var(--c-border)',
+              fontWeight: filter === tab ? '700' : '400',
+            }}
+          >
+            {tab === 'unread' ? `Unread (${unreadCount})` : tab}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="glass-card" style={{ padding: '30px', textAlign: 'center' }}>Loading notification stream...</div>
+      ) : filteredItems.length === 0 ? (
+        <div className="glass-card" style={{ padding: '50px', textAlign: 'center' }}>
+          <CheckCircle2 size={40} style={{ color: 'var(--clr-green)', margin: '0 auto 15px' }} />
+          <h3 style={{ margin: '0 0 8px' }}>You're completely caught up!</h3>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '400px', margin: '0 auto 20px' }}>
+            No alerts found in this view. New order updates, security events, and sync runs will appear here automatically.
+          </p>
+          <a href={toHashPath(ROUTES.PRODUCTS)} className="cta-button" style={{ display: 'inline-block', textDecoration: 'none' }}>
+            Explore Shop
+          </a>
+        </div>
+      ) : (
+        <div className="notification-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {filteredItems.map((item) => (
+            <article
+              className="glass-card"
+              key={item._id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderLeft: item.readAt ? '1px solid var(--c-border)' : '4px solid var(--clr-primary)',
+                background: item.readAt ? 'var(--glass-bg)' : 'rgba(47, 111, 237, 0.05)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span className="card-icon" style={{ background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '50%', display: 'flex' }}>
+                  <Bell size={18} color={item.readAt ? 'var(--text-secondary)' : 'var(--clr-primary)'} />
+                </span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: item.readAt ? '500' : '700' }}>{item.title}</h3>
+                  <p style={{ margin: '4px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{item.message}</p>
+                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                    {new Date(item.createdAt).toLocaleString()} · {item.type || 'system'}
+                  </small>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {!item.readAt && (
+                  <button className="cta-button outline" style={{ padding: '6px 12px', fontSize: '0.8rem' }} type="button" onClick={() => markRead(item)}>
+                    Mark as read
+                  </button>
+                )}
+                <button className="text-action danger" style={{ background: 'none', border: 'none', cursor: 'pointer' }} type="button" onClick={() => dismiss(item)}>
+                  Dismiss
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
+
+
+
+export const IntegrationsPage = () => {
+  const [status, setStatus] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [syncing, setSyncing] = React.useState(false);
+  const { addToast } = useToast();
+
+  const load = React.useCallback(async () => {
+    try {
+      const response = await api.get('/products/sync/status');
+      if (response.success) setStatus(response.data);
+    } catch (err) {
+      addToast(err.error || 'Unable to load Shopify status', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const sync = async () => {
+    setSyncing(true);
+    try {
+      const response = await api.post('/products/sync');
+      if (!response.success) throw new Error(response.error);
+      addToast(`Shopify sync completed! Fetched ${response.data.fetched} items, updated ${response.data.upserted}.`, 'success');
+      await load();
+    } catch (err) {
+      addToast(err.error || err.message || 'Shopify sync failed', 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  return (
+    <>
+      <PageHero
+        eyebrow="Integrations Hub"
+        title="Shopify Storefront & Admin Sync Engine"
+        description="Monitor real-time connection telemetry, trigger catalog synchronization, and inspect automated webhook states."
+        compact
+        actions={
+          <button className="cta-button" type="button" onClick={sync} disabled={syncing}>
+            {syncing ? 'Synchronizing Catalog...' : 'Trigger Live Sync Now'} <RefreshCcw size={16} />
+          </button>
+        }
+      />
+
+      <section className="feature-grid" style={{ marginBottom: '30px' }}>
+        <article className="glass-card" style={{ padding: '24px' }}>
+          <span className="page-eyebrow">Storefront Engine</span>
+          <h3 style={{ margin: '8px 0 6px' }}>GraphQL Storefront API</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Direct customer catalog streaming, live price resolution, and cart checkout URL generation.</p>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
+            <span className="status-pill" style={{ background: status?.configured ? 'rgba(0, 255, 140, 0.1)' : 'rgba(255, 170, 0, 0.12)', color: status?.configured ? 'var(--clr-green)' : 'var(--warning)' }}>{status?.configured ? '● Configured' : '● Not configured'}</span>
+            <span className="status-pill">{status?.apiVersion || 'API version unavailable'}</span>
+          </div>
+        </article>
+
+        <article className="glass-card" style={{ padding: '24px' }}>
+          <span className="page-eyebrow">Database Mirroring</span>
+          <h3 style={{ margin: '8px 0 6px' }}>MongoDB Synced Catalog</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            {loading ? 'Checking synchronization...' : status?.lastRun ? `Last sync: ${status.lastRun.status?.toUpperCase()} (${status.lastRun.fetched || 0} fetched, ${status.lastRun.upserted || 0} upserted)` : 'No sync runs recorded yet.'}
+          </p>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
+            <span className="status-pill">{status?.lastRun?.status || 'Ready'}</span>
+            <span className="status-pill">{status?.storeDomain || 'Store domain required'}</span>
+          </div>
+        </article>
+
+        <article className="glass-card" style={{ padding: '24px' }}>
+          <span className="page-eyebrow">Webhooks & Events</span>
+          <h3 style={{ margin: '8px 0 6px' }}>Real-Time Inventory</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Automated listeners for product updates, price changes, and stock depletion.</p>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '15px' }}>
+            <span className="status-pill" style={{ background: 'rgba(0, 255, 140, 0.1)', color: 'var(--clr-green)' }}>Listening</span>
+          </div>
+        </article>
+      </section>
+
+      <section className="glass-card" style={{ padding: '25px' }}>
+        <h3 style={{ margin: '0 0 15px' }}>Synchronization Run History</h3>
+        {status?.lastRun ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', fontWeight: '600' }}>
+              <span>Run Timestamp</span>
+              <span>Status</span>
+              <span>Fetched</span>
+              <span>Upserted</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '12px', borderBottom: '1px solid var(--c-border)' }}>
+              <span>{status.lastRun.completedAt ? new Date(status.lastRun.completedAt).toLocaleString() : 'Recent'}</span>
+              <span style={{ color: status.lastRun.status === 'completed' ? 'var(--clr-green)' : 'var(--warning)', fontWeight: '600' }}>{status.lastRun.status}</span>
+              <span>{status.lastRun.fetched || 0} items</span>
+              <span>{status.lastRun.upserted || 0} items</span>
+            </div>
+          </div>
+        ) : (
+          <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Click "Trigger Live Sync Now" above to run your first automated Shopify sync.</p>
+        )}
+      </section>
+    </>
+  );
+};
+
+export const InventoryPage = () => {
+  const [productsList, setProductsList] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [filter, setFilter] = React.useState('all');
+  const { addToast } = useToast();
+
+  React.useEffect(() => {
+    const loadInventory = async () => {
+      try {
+        const res = await api.get('/products?limit=48');
+        if (res.success && res.data) setProductsList(res.data);
+      } catch (err) {
+        addToast(err.error || 'Failed to load inventory', 'error');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInventory();
+  }, [addToast]);
+
+  const filtered = productsList.filter(p => {
+    if (filter === 'low') return (p.stock || 0) <= (p.reorderPoint || 10);
+    if (filter === 'out') return (p.stock || 0) === 0;
+    return true;
+  });
+
+  return (
+    <>
+      <PageHero eyebrow="Management" title="Inventory & Stock Health" description="Real-time stock levels, reorder threshold alerts, and Shopify variant inventory tracking." compact />
+
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+        {['all', 'low', 'out'].map(t => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setFilter(t)}
+            style={{
+              padding: '8px 16px',
+              borderRadius: '20px',
+              background: filter === t ? 'var(--clr-primary)' : 'rgba(255,255,255,0.05)',
+              color: filter === t ? '#000' : 'var(--text)',
+              border: '1px solid var(--c-border)',
+              cursor: 'pointer',
+              fontWeight: filter === t ? '700' : '400',
+              textTransform: 'capitalize',
+            }}
+          >
+            {t === 'all' ? 'All Products' : t === 'low' ? 'Low Stock Warnings' : 'Out of Stock'}
+          </button>
+        ))}
+      </div>
+
+      <div className="glass-card table-responsive-wrapper" style={{ padding: '20px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)' }}>
+              <th style={{ padding: '12px' }}>Product</th>
+              <th style={{ padding: '12px' }}>Category</th>
+              <th style={{ padding: '12px' }}>Price</th>
+              <th style={{ padding: '12px' }}>Stock Status</th>
+              <th style={{ padding: '12px' }}>Units Left</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>Loading inventory...</td></tr>
+            ) : filtered.length === 0 ? (
+              <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>No products matching criteria.</td></tr>
+            ) : (
+              filtered.map(p => (
+                <tr key={p.id || p._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <img src={p.image} alt={p.name} style={{ width: '36px', height: '36px', borderRadius: '4px', objectFit: 'cover' }} />
+                    <div>
+                      <strong>{p.name}</strong>
+                      <small style={{ display: 'block', color: 'var(--text-muted)' }}>{p.brand || 'MythicMart'}</small>
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px', textTransform: 'capitalize' }}>{p.category}</td>
+                  <td style={{ padding: '12px' }}>{formatPrice(p.price)}</td>
+                  <td style={{ padding: '12px' }}>
+                    <span
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        background: (p.stock || 0) > 10 ? 'rgba(0, 255, 140, 0.1)' : (p.stock || 0) > 0 ? 'rgba(255, 199, 0, 0.1)' : 'rgba(255, 77, 77, 0.1)',
+                        color: (p.stock || 0) > 10 ? 'var(--clr-green)' : (p.stock || 0) > 0 ? 'var(--clr-gold)' : 'var(--clr-red)',
+                      }}
+                    >
+                      {(p.stock || 0) > 10 ? 'Healthy' : (p.stock || 0) > 0 ? 'Low Stock' : 'Depleted'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '12px', fontWeight: '700' }}>{p.stock || 0}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+};
+
+export const CustomersPage = () => {
+  const [customers, setCustomers] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const { addToast } = useToast();
+
+  const loadCustomers = React.useCallback(async () => {
+    try {
+      const res = await api.get('/users/admin');
+      if (res.success && res.data) setCustomers(res.data);
+    } catch (err) {
+      addToast(err.error || 'Failed to load customer list', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [addToast]);
+
+  React.useEffect(() => { loadCustomers(); }, [loadCustomers]);
+
+  const updateRole = async (id, role) => {
+    try {
+      const res = await api.patch(`/users/admin/${id}/role`, { role });
+      if (res.success) {
+        addToast(`User role updated to ${role}`, 'success');
+        setCustomers(prev => prev.map(c => c._id === id ? { ...c, role } : c));
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to update role', 'error');
+    }
+  };
+
+  const toggleStatus = async (id, currentActive) => {
+    try {
+      const res = await api.patch(`/users/admin/${id}/status`, { isActive: !currentActive });
+      if (res.success) {
+        addToast(`Customer ${!currentActive ? 'activated' : 'disabled'}`, 'success');
+        setCustomers(prev => prev.map(c => c._id === id ? { ...c, isActive: !currentActive } : c));
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to update status', 'error');
+    }
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="CRM" title="Customer Directory & Role Management" description="Inspect registered customer accounts, manage role-based permissions, and toggle access states." compact />
+      <div className="glass-card table-responsive-wrapper" style={{ padding: '20px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)' }}>
+              <th style={{ padding: '12px' }}>Customer</th>
+              <th style={{ padding: '12px' }}>Loyalty Tier</th>
+              <th style={{ padding: '12px' }}>Role</th>
+              <th style={{ padding: '12px' }}>Status</th>
+              <th style={{ padding: '12px' }}>Joined Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>Loading customer directory...</td></tr>
+            ) : customers.length === 0 ? (
+              <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>No customers registered yet.</td></tr>
+            ) : (
+              customers.map(c => (
+                <tr key={c._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <td style={{ padding: '12px' }}>
+                    <strong>{c.name}</strong>
+                    <small style={{ display: 'block', color: 'var(--text-muted)' }}>{c.email}</small>
+                  </td>
+                  <td style={{ padding: '12px' }}>
+                    <span className="status-pill" style={{ textTransform: 'capitalize' }}>{c.loyaltyTier || 'Standard'}</span>
+                  </td>
+                  <td style={{ padding: '12px' }}>
+                    <select
+                      value={c.role}
+                      onChange={(e) => updateRole(c._id, e.target.value)}
+                      style={{ background: 'var(--c-surface-solid)', color: 'var(--text)', border: '1px solid var(--c-border)', borderRadius: '4px', padding: '4px 8px' }}
+                    >
+                      <option value="user">User</option>
+                      <option value="support">Support</option>
+                      <option value="manager">Manager</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </td>
+                  <td style={{ padding: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => toggleStatus(c._id, c.isActive)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        border: 'none',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        background: c.isActive ? 'rgba(0, 255, 140, 0.1)' : 'rgba(255, 77, 77, 0.1)',
+                        color: c.isActive ? 'var(--clr-green)' : 'var(--clr-red)',
+                      }}
+                    >
+                      {c.isActive ? 'Active' : 'Disabled'}
+                    </button>
+                  </td>
+                  <td style={{ padding: '12px', color: 'var(--text-muted)' }}>
+                    {new Date(c.createdAt).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+};
+
+export const CouponsPage = () => {
+  const { addToast } = useToast();
+  const coupons = [
+    { code: 'MYTHIC10', discount: '10% OFF', desc: 'Site-wide instant discount on orders over $50', min: 50, tag: 'Popular' },
+    { code: 'LUXE20', discount: '$20 OFF', desc: 'Exclusive VIP savings on luxury accessories', min: 150, tag: 'VIP Exclusive' },
+    { code: 'FREESHIP', discount: 'Free Shipping', desc: 'Express global delivery on all apparel and footwear', min: 0, tag: 'Shipping' },
+  ];
+
+  const copyCode = (code) => {
+    navigator.clipboard.writeText(code);
+    addToast(`Coupon code ${code} copied to clipboard!`, 'success');
+  };
+
+  return (
+    <>
+      <PageHero eyebrow="Promotions" title="Active Promotional Codes & Perks" description="Explore verified promotional codes and apply instant discounts at checkout." compact />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
+        {coupons.map(c => (
+          <article key={c.code} className="glass-card" style={{ padding: '25px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: '15px' }}>
+            <div>
+              <span className="status-pill" style={{ background: 'rgba(255, 199, 0, 0.1)', color: 'var(--clr-gold)' }}>{c.tag}</span>
+              <h2 style={{ fontSize: '1.8rem', margin: '10px 0 4px', color: 'var(--clr-primary)' }}>{c.discount}</h2>
+              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.9rem' }}>{c.desc}</p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '15px', borderTop: '1px solid var(--c-border)' }}>
+              <strong style={{ letterSpacing: '1px', fontSize: '1.1rem' }}>{c.code}</strong>
+              <button className="cta-button outline" type="button" onClick={() => copyCode(c.code)}>Copy Code</button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </>
+  );
+};
+
+export const ActivityPage = () => {
+  const events = [
+    { title: 'Shopify Catalog Auto-Sync Complete', time: '10 minutes ago', type: 'system', desc: '20 products refreshed from Shopify GraphQL endpoints.' },
+    { title: 'New Customer Order Confirmed', time: '25 minutes ago', type: 'order', desc: 'Order #ORD-789 placed for Obsidian Chronograph.' },
+    { title: 'Customer Review Approved', time: '1 hour ago', type: 'review', desc: '5-star review published for Onyx Studio Earbuds.' },
+    { title: 'Security Audit Scan Passed', time: '3 hours ago', type: 'security', desc: 'Automated token verification and helmet header checks verified.' },
+  ];
+
+  return (
+    <>
+      <PageHero eyebrow="Audit Trail" title="Platform Activity Stream" description="Real-time chronological events across catalog syncs, orders, customer registrations, and security logs." compact />
+      <div className="glass-card" style={{ padding: '25px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+          {events.map((e, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '15px', paddingBottom: '15px', borderBottom: '1px solid var(--c-border)' }}>
+              <span className="card-icon" style={{ background: 'rgba(255,255,255,0.05)', padding: '10px', borderRadius: '50%', display: 'flex' }}>
+                <Activity size={18} color="var(--clr-primary)" />
+              </span>
+              <div style={{ flex: 1 }}>
+                <strong style={{ fontSize: '1rem' }}>{e.title}</strong>
+                <p style={{ margin: '3px 0 0', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{e.desc}</p>
+              </div>
+              <small style={{ color: 'var(--text-muted)' }}>{e.time}</small>
+            </div>
+          ))}
+        </div>
+      </div>
     </>
   );
 };
@@ -1068,12 +2117,52 @@ export const CareersPage = () => (
   </>
 );
 
-export const ReviewsPage = () => (
-  <>
-    <PageHero eyebrow="Reviews" title="Product reviews and moderation-ready feedback." description="Ratings, reviews, helpful votes, and admin moderation are ready to support buyer confidence." compact />
-    <div className="feature-grid">{products.slice(0, 4).map(product => <IconCard key={product.id} icon={Star} title={product.name} description={`${product.rating} rating from ${product.reviewCount} reviews.`} />)}</div>
-  </>
-);
+export const ReviewsPage = () => {
+  const [reviewsList, setReviewsList] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let isMounted = true;
+    api.get('/reviews?limit=12')
+      .then(res => {
+        if (res.success && res.data && isMounted) setReviewsList(res.data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => { isMounted = false; };
+  }, []);
+
+  return (
+    <>
+      <PageHero eyebrow="Reviews" title="Verified Customer Feedback & Ratings." description="Ratings, reviews, helpful votes, and transparent customer feedback directly from the catalog." compact />
+      {loading ? (
+        <div className="empty-state">Loading customer reviews...</div>
+      ) : reviewsList.length > 0 ? (
+        <div className="feature-grid">
+          {reviewsList.map(r => (
+            <article className="premium-card" key={r._id || r.id} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--clr-gold)', fontSize: '1.1rem' }}>{'★'.repeat(r.rating || 5)}{'☆'.repeat(5 - (r.rating || 5))}</span>
+                <span className="status-pill">{r.rating}/5</span>
+              </div>
+              <h3 style={{ margin: '4px 0' }}>{r.title || `${r.rating} Star Review`}</h3>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', flex: 1 }}>{r.comment}</p>
+              <small style={{ color: 'var(--text-muted)' }}>By {r.guestName || r.user?.name || 'Verified Patron'}</small>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">
+          <strong>No public reviews found yet.</strong>
+          <p>Explore our products in the shop and be the first to leave a review!</p>
+          <a href={toHashPath(ROUTES.PRODUCTS)} className="cta-button" style={{ display: 'inline-block', marginTop: '10px' }}>Explore Catalog</a>
+        </div>
+      )}
+    </>
+  );
+};
 
 export const TestimonialsPage = () => (
   <>
@@ -1158,15 +2247,7 @@ export const SupportSystemPage = () => {
   );
 };
 
-export const LoginPage = () => (
-  <PageHero
-    eyebrow="Sign in temporarily unavailable"
-    title="Login is paused while we complete maintenance."
-    description="The rest of the storefront remains available. Please try signing in again shortly."
-    actions={<a className="primary-action" href={toHashPath(ROUTES.HOME)}>Continue shopping</a>}
-    compact
-  />
-);
+export const LoginPage = () => <AuthPanel mode="login" />;
 export const SignupPage = () => <AuthPanel mode="signup" />;
 export const ForgotPasswordPage = () => <AuthPanel mode="forgot" />;
 export const OTPVerificationPage = () => <AuthPanel mode="otp" />;

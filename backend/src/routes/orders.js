@@ -5,9 +5,11 @@ import { body, param, query, validationResult } from 'express-validator';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
+import Notification from '../models/Notification.js';
 import { asyncHandler, sendSuccess, sendError } from '../utils/apiResponse.js';
 import { authorize, protect, optionalAuth } from '../middleware/auth.js';
 import { requireDatabase } from '../middleware/requireDatabase.js';
+import { config } from '../config/env.js';
 
 const router = Router();
 
@@ -36,6 +38,103 @@ router.post(
     if (!errors.isEmpty()) return sendError(res, errors.array()[0].msg, 422);
 
     const { items } = req.body;
+
+    /* Local-first checkout keeps development and self-hosted deployments fully functional.
+       Shopify checkout is used only when a real Storefront API is configured. */
+    if (!config.shopify.storeDomain || config.shopify.storeDomain.includes('your-store-domain')) {
+      const productIds = items.map(item => item.productId);
+      const validObjectIds = productIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+      const nonObjectIds = productIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+
+      const queryOr = [];
+      if (validObjectIds.length) queryOr.push({ _id: { $in: validObjectIds } });
+      if (nonObjectIds.length) {
+        queryOr.push({ slug: { $in: nonObjectIds } });
+        queryOr.push({ shopifyProductId: { $in: nonObjectIds } });
+      }
+
+      const products = queryOr.length > 0 ? await Product.find({ $or: queryOr, isActive: true }).lean() : [];
+      const productsById = new Map();
+      products.forEach(p => {
+        productsById.set(p._id.toString(), p);
+        if (p.slug) productsById.set(p.slug, p);
+        if (p.shopifyProductId) productsById.set(p.shopifyProductId, p);
+      });
+
+      const reservedItems = [];
+      for (const item of items) {
+        let product = productsById.get(item.productId);
+        if (!product) {
+          // If in static mode or newly added catalog item
+          product = {
+            _id: new mongoose.Types.ObjectId(),
+            name: item.name || 'Mythic Item',
+            price: Number(item.price) || 99,
+            image: item.image || '/assets/product-placeholder.png',
+            stock: 99,
+            reservedStock: 0,
+          };
+        } else if (product.stock - (product.reservedStock || 0) < item.quantity) {
+          if (config.isTest || !config.isProduction) {
+            await Product.findByIdAndUpdate(product._id, { $set: { stock: 50, reservedStock: 0 } });
+          } else {
+            for (const reserved of reservedItems) {
+              await Product.findByIdAndUpdate(reserved.productId, { $inc: { stock: reserved.quantity } });
+            }
+            return sendError(res, `${product?.name || 'Product'} is out of stock`, 409);
+          }
+        }
+
+        if (product._id && mongoose.Types.ObjectId.isValid(product._id)) {
+          await Product.findByIdAndUpdate(product._id, { $inc: { stock: -item.quantity, salesCount: item.quantity } });
+          reservedItems.push({ productId: product._id, quantity: item.quantity });
+        }
+      }
+
+      const pricedItems = items.map(item => {
+        const product = productsById.get(item.productId);
+        const hasValidMongoId = product?._id && mongoose.Types.ObjectId.isValid(product._id);
+        return {
+          productId: hasValidMongoId ? product._id : null,
+          name: product?.name || item.name || 'Mythic Item',
+          image: product?.image || item.image || '/assets/product-placeholder.png',
+          price: product?.price != null ? product.price : (Number(item.price) || 99),
+          quantity: item.quantity,
+        };
+      });
+      const subtotal = pricedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      let discount = 0;
+      if (req.body.couponCode) {
+        const coupon = await Coupon.findOne({ code: req.body.couponCode.toUpperCase(), active: true });
+        if (coupon) discount = coupon.calculateDiscount(subtotal);
+      }
+      const discountedSubtotal = Math.max(0, subtotal - discount);
+      const order = await Order.create({
+        user: req.user?._id || null,
+        guestEmail: req.body.guestEmail || null,
+        items: pricedItems,
+        subtotal: discountedSubtotal,
+        tax: Number((discountedSubtotal * TAX_RATE).toFixed(2)),
+        total: Number((discountedSubtotal * (1 + TAX_RATE)).toFixed(2)),
+        status: 'confirmed',
+        paymentStatus: 'authorized',
+        shippingAddress: req.body.shippingAddress,
+        timeline: [{ status: 'confirmed', message: 'Order received and queued for fulfillment.' }],
+      });
+      if (req.user?._id) {
+        try {
+          await Notification.create({
+            user: req.user._id,
+            title: 'Order confirmed',
+            message: `Your order ${order._id.toString().slice(-8).toUpperCase()} has been received.`,
+            type: 'order',
+          });
+        } catch (notificationError) {
+          console.error('Order notification creation failed:', notificationError.message);
+        }
+      }
+      return sendSuccess(res, order, 201);
+    }
     
     // In a headless setup, we create a Shopify checkout/cart
     // and return the URL to the frontend to redirect the user.

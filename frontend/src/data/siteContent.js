@@ -27,9 +27,9 @@ import { ROUTES } from '../utils/routes';
 
 export const primaryNavLinks = [
   { label: 'Home', path: ROUTES.HOME },
-  { label: 'Products', path: ROUTES.PRODUCTS },
+  { label: 'Shop', path: ROUTES.PRODUCTS },
   { label: 'Categories', path: ROUTES.CATEGORIES },
-  { label: 'Services', path: ROUTES.SERVICES },
+  { label: 'Deals', path: ROUTES.COUPONS },
   { label: 'Dashboard', path: ROUTES.DASHBOARD },
   { label: 'Support', path: ROUTES.SUPPORT },
 ];
@@ -37,7 +37,11 @@ export const primaryNavLinks = [
 export const quickAccessLinks = [
   { label: 'Orders', path: ROUTES.ORDERS, icon: ClipboardList },
   { label: 'Wishlist', path: ROUTES.WISHLIST, icon: Heart },
+  { label: 'Inventory', path: ROUTES.INVENTORY, icon: PackageCheck },
+  { label: 'Customers', path: ROUTES.CUSTOMERS, icon: Users },
   { label: 'Analytics', path: ROUTES.ANALYTICS, icon: BarChart3 },
+  { label: 'Shopify & Sync', path: ROUTES.INTEGRATIONS, icon: RefreshCcw },
+  { label: 'Notifications', path: ROUTES.NOTIFICATIONS, icon: Bell },
   { label: 'Settings', path: ROUTES.SETTINGS, icon: SlidersHorizontal },
 ];
 
