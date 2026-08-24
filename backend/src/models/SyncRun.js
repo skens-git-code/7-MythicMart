@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 const syncRunSchema = new mongoose.Schema({
-  source: { type: String, enum: ['shopify'], required: true, index: true },
+  source: { type: String, enum: ['shopify', 'shopify_orders', 'shopify_customers'], required: true, index: true },
   status: { type: String, enum: ['running', 'completed', 'failed'], required: true },
   startedAt: { type: Date, required: true },
   completedAt: Date,

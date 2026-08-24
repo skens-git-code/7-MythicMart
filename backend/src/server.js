@@ -5,11 +5,14 @@ import connectDB from './config/db.js';
 import mongoose from 'mongoose';
 import { config as appConfig } from './config/env.js';
 import { syncShopifyProducts, shopifySyncConfigured } from './services/shopifySyncService.js';
+import { syncShopifyOrders } from './services/shopifyOrderSyncService.js';
+import { syncShopifyCustomers, syncLocalCustomers } from './services/shopifyCustomerSyncService.js';
 
 /* Start server */
 const startServer = async () => {
   validateEnv();
   const dbConnected = await connectDB();
+  if (dbConnected) await syncLocalCustomers().catch(error => console.error('Local customer backfill failed:', error.message));
 
   if (config.isProduction && !dbConnected) {
     throw new Error('MongoDB connection is required in production');
@@ -25,9 +28,15 @@ const startServer = async () => {
 
   if (shopifySyncConfigured() && appConfig.shopify.syncOnStart) {
     syncShopifyProducts().catch(error => console.error('Shopify startup sync failed:', error.message));
+    syncShopifyOrders().catch(error => console.error('Shopify order startup sync failed:', error.message));
+    syncShopifyCustomers().catch(error => console.error('Shopify customer startup sync failed:', error.message));
   }
   if (shopifySyncConfigured() && appConfig.shopify.syncIntervalMs > 0) {
-    setInterval(() => syncShopifyProducts().catch(error => console.error('Shopify scheduled sync failed:', error.message)), appConfig.shopify.syncIntervalMs).unref();
+    setInterval(() => {
+      syncShopifyProducts().catch(error => console.error('Shopify scheduled sync failed:', error.message));
+      syncShopifyOrders().catch(error => console.error('Shopify scheduled order sync failed:', error.message));
+      syncShopifyCustomers().catch(error => console.error('Shopify scheduled customer sync failed:', error.message));
+    }, appConfig.shopify.syncIntervalMs).unref();
   }
 
   server.keepAliveTimeout = 65_000;

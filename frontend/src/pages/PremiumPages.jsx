@@ -108,7 +108,7 @@ const ChartCard = ({ title = 'Revenue trend' }) => (
 
 const ProductMiniCard = ({ product, actionLabel = 'View details', onAction }) => (
   <article className="product-mini-card">
-    <img src={product.image} alt={product.name} loading="lazy" decoding="async" />
+    <img src={product.image} alt={product.name} loading="lazy" decoding="async" onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.parentElement.classList.add('image-load-failed'); }} />
     <div>
       <span className="status-pill">{product.category}</span>
       <h3>{product.name}</h3>
@@ -782,37 +782,334 @@ export const AnalyticsPage = () => {
 export const OrdersPage = () => {
   const [orders, setOrders] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [statusFilter, setStatusFilter] = React.useState('all');
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [page, setPage] = React.useState(1);
+  const [sort, setSort] = React.useState('newest');
+  const [fromDate, setFromDate] = React.useState('');
+  const [toDate, setToDate] = React.useState('');
+  const [pagination, setPagination] = React.useState({ page: 1, pages: 0, total: 0 });
+  const [selectedOrder, setSelectedOrder] = React.useState(null);
+  const { user } = useAuth();
   const { addToast } = useToast();
 
-  React.useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        const response = await api.get('/orders/my');
-        if (response.success) {
-          setOrders(response.data);
-        }
-      } catch (err) {
-        addToast(err.error || 'Failed to load orders', 'error');
-      } finally {
-        setLoading(false);
+  const loadOrders = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const isStaff = ['admin', 'manager', 'support'].includes(user?.role);
+      const params = new URLSearchParams({ page: String(page), limit: '25', sort });
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
+      if (fromDate) params.set('from', fromDate);
+      if (toDate) params.set('to', toDate);
+      const endpoint = `${isStaff ? '/orders/admin' : '/orders/my'}?${params.toString()}`;
+      const response = await api.get(endpoint);
+      if (response.success) {
+        setOrders(response.data || []);
+        setPagination(response.pagination || { page, pages: 0, total: response.data?.length || 0 });
       }
-    };
-    fetchOrders();
-  }, [addToast]);
+    } catch (err) {
+      addToast(err.error || 'Failed to load orders', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.role, statusFilter, searchQuery, page, sort, fromDate, toDate, addToast]);
+
+  React.useEffect(() => {
+    setPage(1);
+  }, [statusFilter, searchQuery, sort, fromDate, toDate]);
+
+  React.useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
+
+  const handleUpdateStatus = async (orderId, newStatus) => {
+    try {
+      const res = await api.patch(`/orders/${orderId}/status`, { status: newStatus });
+      if (res.success) {
+        addToast(`Order status updated to ${newStatus}`, 'success');
+        setOrders(prev => prev.map(o => (o._id === orderId || o.orderNumber === orderId) ? { ...o, status: newStatus } : o));
+        if (selectedOrder && (selectedOrder._id === orderId || selectedOrder.orderNumber === orderId)) {
+          setSelectedOrder(prev => ({ ...prev, status: newStatus }));
+        }
+      } else {
+        addToast(res.error || 'Failed to update order status', 'error');
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to update status', 'error');
+    }
+  };
+
+  const filteredOrders = orders.filter(o => {
+    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return matchesStatus;
+    const matchesNumber = (o.orderNumber || o._id || '').toLowerCase().includes(q);
+    const matchesItem = (o.items || []).some(item => (item.name || '').toLowerCase().includes(q));
+    const matchesCustomer = (o.guestEmail || o.user?.email || o.shippingAddress?.name || '').toLowerCase().includes(q);
+    return matchesStatus && (matchesNumber || matchesItem || matchesCustomer);
+  });
+
+  const getTimelineStep = (status) => {
+    switch (status) {
+      case 'confirmed': return 1;
+      case 'packed': return 2;
+      case 'shipped': return 3;
+      case 'delivered': return 4;
+      case 'cancelled':
+      case 'returned': return -1;
+      default: return 1;
+    }
+  };
 
   return (
     <>
-      <PageHero eyebrow="Orders" title="Order history and fulfillment tracking." description="Review order status, delivery progress, invoices, returns, and support handoffs." compact />
+      <PageHero eyebrow="Orders" title="Orders & Fulfillment Tracking." description="Track real-time shipment status, review purchase receipts, inspect line items, and manage fulfillment." compact />
+
+      {/* Controls Bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center', justifyContent: 'space-between', margin: '20px 0' }}>
+        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', maxWidth: '100%' }}>
+          {['all', 'pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled'].map(st => (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setStatusFilter(st)}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '20px',
+                border: '1px solid var(--c-border)',
+                background: statusFilter === st ? 'var(--clr-primary)' : 'rgba(255,255,255,0.03)',
+                color: statusFilter === st ? '#000' : 'var(--text)',
+                fontWeight: statusFilter === st ? '700' : '400',
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+                fontSize: '0.85rem',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ minWidth: '240px', flex: '1 1 240px', maxWidth: '380px' }}>
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by order #, item, or name..."
+            style={{ width: '100%', padding: '8px 14px', borderRadius: '20px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)' }}
+          />
+        </div>
+        <select aria-label="Sort orders" value={sort} onChange={e => setSort(e.target.value)} className="orders-filter-control">
+          <option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="total-high">Highest total</option><option value="total-low">Lowest total</option>
+        </select>
+        <label className="orders-date-control">From <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} /></label>
+        <label className="orders-date-control">To <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} /></label>
+      </div>
+
       {loading ? (
-        <div style={{ padding: '2rem', textAlign: 'center' }}>Loading orders...</div>
+        <div className="empty-state">Loading order history...</div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="empty-state">
+          <strong>No orders found</strong>
+          <p>{statusFilter !== 'all' || searchQuery ? 'No orders match your active filter.' : 'You have not placed any orders yet.'}</p>
+          <a href={toHashPath(ROUTES.PRODUCTS)} className="cta-button" style={{ display: 'inline-block', marginTop: '10px' }}>Browse Catalog</a>
+        </div>
       ) : (
-        <TableShell rows={orders.length > 0 ? orders.map(o => ({
-          id: o._id.slice(-6).toUpperCase(),
-          product: o.items.length === 1 ? o.items[0].name : `${o.items[0].name} + ${o.items.length - 1} more`,
-          status: o.status || o.timeline?.[o.timeline.length - 1]?.status || 'pending',
-          date: new Date(o.createdAt).toLocaleDateString(),
-          amount: formatPrice(o.total)
-        })) : []} title="Your orders" />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {filteredOrders.map(o => {
+            const currentStep = getTimelineStep(o.status);
+            const isCancelled = o.status === 'cancelled' || o.status === 'returned';
+            const orderNum = o.orderNumber || `MM-${(o._id || '').slice(-6).toUpperCase()}`;
+
+            return (
+              <article key={o._id} className="glass-card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {/* Card Header */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', borderBottom: '1px solid var(--c-border)', paddingBottom: '14px' }}>
+                  <div>
+                    <span style={{ fontSize: '1.2rem', fontWeight: '800', letterSpacing: '0.5px' }}>{orderNum}</span>
+                    <span style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                      Placed on {new Date(o.createdAt).toLocaleDateString()} at {new Date(o.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '12px',
+                        fontSize: '0.82rem',
+                        fontWeight: '700',
+                        textTransform: 'capitalize',
+                        background: o.status === 'delivered' ? 'rgba(0, 255, 140, 0.12)' : o.status === 'cancelled' ? 'rgba(255, 77, 77, 0.12)' : 'rgba(20, 217, 255, 0.12)',
+                        color: o.status === 'delivered' ? 'var(--clr-green)' : o.status === 'cancelled' ? 'var(--clr-red)' : 'var(--clr-primary)',
+                      }}
+                    >
+                      {o.status}
+                    </span>
+                    <button
+                      type="button"
+                      className="cta-button outline"
+                      onClick={() => setSelectedOrder(o)}
+                      style={{ fontSize: '0.85rem', padding: '6px 12px' }}
+                    >
+                      View Receipt & Timeline
+                    </button>
+                    <a className="text-action" href={toHashPath(`/orders/${o.orderNumber || o._id}`)}>Open details</a>
+                  </div>
+                </div>
+
+                {/* Tracking Progress Bar */}
+                {!isCancelled && (
+                  <div style={{ margin: '8px 0' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', textAlign: 'center', fontSize: '0.8rem', fontWeight: '600', marginBottom: '8px' }}>
+                      <span style={{ color: currentStep >= 1 ? 'var(--clr-primary)' : 'var(--text-muted)' }}>1. Confirmed</span>
+                      <span style={{ color: currentStep >= 2 ? 'var(--clr-primary)' : 'var(--text-muted)' }}>2. Packed</span>
+                      <span style={{ color: currentStep >= 3 ? 'var(--clr-primary)' : 'var(--text-muted)' }}>3. Shipped</span>
+                      <span style={{ color: currentStep >= 4 ? 'var(--clr-green)' : 'var(--text-muted)' }}>4. Delivered</span>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${(Math.min(currentStep, 4) / 4) * 100}%`,
+                          background: currentStep === 4 ? 'var(--clr-green)' : 'linear-gradient(90deg, #14d9ff, #5a20ff)',
+                          transition: 'width 0.4s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Line Items List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {(o.items || []).map((item, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <img
+                          src={item.image || undefined}
+                          alt={item.name}
+                          style={{ width: '44px', height: '44px', borderRadius: '6px', objectFit: 'cover', background: 'rgba(255,255,255,0.05)' }}
+                          onError={(e) => { e.currentTarget.hidden = true; e.currentTarget.parentElement.classList.add('image-load-failed'); }}
+                        />
+                        <div>
+                          <strong style={{ fontSize: '0.95rem' }}>{item.name}</strong>
+                          <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Qty: {item.quantity} × {formatPrice(item.price)}</span>
+                        </div>
+                      </div>
+                      <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>{formatPrice(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Order Footer / Total */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '10px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    {o.shippingAddress ? `Deliver to: ${o.shippingAddress.name || 'Patron'}, ${o.shippingAddress.city || 'Standard Destination'}` : 'Direct Fulfillment'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    {(user?.role === 'admin' || user?.role === 'manager') && (
+                      <select
+                        value={o.status}
+                        onChange={(e) => handleUpdateStatus(o._id, e.target.value)}
+                        style={{ padding: '4px 8px', borderRadius: '6px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)', fontSize: '0.82rem' }}
+                      >
+                        <option value="confirmed">Set Confirmed</option>
+                        <option value="packed">Set Packed</option>
+                        <option value="shipped">Set Shipped</option>
+                        <option value="delivered">Set Delivered</option>
+                        <option value="cancelled">Set Cancelled</option>
+                      </select>
+                    )}
+                    <span style={{ fontSize: '1.2rem', fontWeight: '800' }}>Total: {formatPrice(o.total)}</span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {!loading && pagination.pages > 1 && (
+        <nav className="orders-pagination" aria-label="Orders pages">
+          <button type="button" className="cta-button outline" disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))}>Previous</button>
+          <span aria-live="polite">Page {pagination.page} of {pagination.pages} · {pagination.total} orders</span>
+          <button type="button" className="cta-button outline" disabled={page >= pagination.pages} onClick={() => setPage(value => Math.min(pagination.pages, value + 1))}>Next</button>
+        </nav>
+      )}
+
+      {/* Order Details & Receipt Modal */}
+      {selectedOrder && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'grid', placeItems: 'center', zIndex: 10000, padding: '20px' }}>
+          <div className="glass-card" style={{ maxWidth: '580px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--c-border)', paddingBottom: '15px' }}>
+              <div>
+                <span className="page-eyebrow">Order Receipt</span>
+                <h2 style={{ margin: '4px 0 0', fontSize: '1.4rem' }}>{selectedOrder.orderNumber || `MM-${(selectedOrder._id || '').slice(-6).toUpperCase()}`}</h2>
+              </div>
+              <button type="button" className="cta-button outline" onClick={() => setSelectedOrder(null)} style={{ padding: '4px 10px' }}>Close</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '20px' }}>
+              <div>
+                <h4 style={{ margin: '0 0 6px', fontSize: '0.95rem' }}>Purchased Items</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {selectedOrder.items?.map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
+                      <span>{item.name} × {item.quantity}</span>
+                      <strong>{formatPrice(item.price * item.quantity)}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.9rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Subtotal</span>
+                  <span>{formatPrice(selectedOrder.subtotal)}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Sales Tax (8%)</span>
+                  <span>{formatPrice(selectedOrder.tax)}</span>
+                </div>
+                {selectedOrder.discountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--clr-green)' }}>
+                    <span>Coupon Savings</span>
+                    <span>-{formatPrice(selectedOrder.discountAmount)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: '800', borderTop: '1px solid var(--c-border)', paddingTop: '8px' }}>
+                  <span>Grand Total</span>
+                  <span style={{ color: 'var(--clr-primary)' }}>{formatPrice(selectedOrder.total)}</span>
+                </div>
+              </div>
+
+              {selectedOrder.shippingAddress && (
+                <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: '12px' }}>
+                  <h4 style={{ margin: '0 0 6px', fontSize: '0.95rem' }}>Shipping Destination</h4>
+                  <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    {selectedOrder.shippingAddress.name}<br />
+                    {selectedOrder.shippingAddress.line1}<br />
+                    {selectedOrder.shippingAddress.city}, {selectedOrder.shippingAddress.state} {selectedOrder.shippingAddress.zip}
+                  </p>
+                </div>
+              )}
+
+              {selectedOrder.timeline?.length > 0 && (
+                <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: '12px' }}>
+                  <h4 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>Fulfillment Timeline</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {selectedOrder.timeline.map((t, idx) => (
+                      <div key={idx} style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <span style={{ color: 'var(--clr-primary)', fontWeight: '600' }}>● {t.status?.toUpperCase()}:</span> {t.message} <small style={{ color: 'var(--text-muted)' }}>({new Date(t.at).toLocaleTimeString()})</small>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
@@ -1764,6 +2061,22 @@ export const IntegrationsPage = () => {
   );
 };
 
+export const OrderDetailsPage = ({ id }) => {
+  const [order, setOrder] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+  React.useEffect(() => {
+    let active = true;
+    setLoading(true);
+    api.get(`/orders/${encodeURIComponent(id)}`).then(response => { if (active && response.success) setOrder(response.data); }).catch(err => { if (active) setError(err.error || 'Unable to load this order.'); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [id]);
+  if (loading) return <div className="empty-state" role="status">Loading order details…</div>;
+  if (error || !order) return <div className="empty-state" role="alert"><strong>Order unavailable</strong><p>{error || 'This order could not be found.'}</p></div>;
+  const currency = order.currency || 'USD';
+  return <><PageHero eyebrow="Order details" title={order.orderNumber || order.shopifyOrderId || 'Order'} description="Review customer, payment, fulfillment, line-item, and delivery information from the persisted order record." compact /><section className="order-detail-grid"><article className="glass-card order-detail-panel"><div className="order-detail-heading"><div><span className="page-eyebrow">Status</span><h2>{order.status}</h2></div><span className="status-pill">{order.fulfillmentStatus || 'unfulfilled'}</span></div><p className="elegant-text">Placed {order.createdAt ? new Date(order.createdAt).toLocaleString() : 'date unavailable'} · Payment: {order.paymentStatus || 'unknown'}</p><h3>Items</h3><div className="order-detail-items">{(order.items || []).map((item, index) => <div className="order-detail-item" key={`${item.shopifyVariantId || item.name}-${index}`}><div className="order-detail-item-media">{item.image ? <img src={item.image} alt="" onError={event => { event.currentTarget.hidden = true; }} /> : <span>No image</span>}</div><div><strong>{item.name}</strong><p>Qty {item.quantity}{item.sku ? ` · ${item.sku}` : ''}</p></div><strong>{formatPrice(item.price * item.quantity, currency)}</strong></div>)}</div></article><aside className="glass-card order-detail-panel"><h3>Summary</h3><dl className="order-summary-list"><div><dt>Subtotal</dt><dd>{formatPrice(order.subtotal, currency)}</dd></div><div><dt>Discount</dt><dd>-{formatPrice(order.discountAmount || 0, currency)}</dd></div><div><dt>Shipping</dt><dd>{formatPrice(order.shippingAmount || 0, currency)}</dd></div><div><dt>Tax</dt><dd>{formatPrice(order.tax || 0, currency)}</dd></div><div className="order-summary-total"><dt>Total</dt><dd>{formatPrice(order.total, currency)}</dd></div></dl>{order.customer && <><h3>Customer</h3><p>{order.customer.name || 'Customer unavailable'}<br />{order.customer.email || order.guestEmail || 'Email unavailable'}{order.customer.phone ? <><br />{order.customer.phone}</> : null}</p></>}{order.shippingAddress && <><h3>Shipping address</h3><p>{order.shippingAddress.name}<br />{order.shippingAddress.line1}<br />{order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.zip}<br />{order.shippingAddress.country}</p></>}</aside></section></>;
+};
+
 export const InventoryPage = () => {
   const [productsList, setProductsList] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -1872,106 +2185,228 @@ export const InventoryPage = () => {
 export const CustomersPage = () => {
   const [customers, setCustomers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [search, setSearch] = React.useState('');
+  const [roleFilter, setRoleFilter] = React.useState('all');
+  const [statusFilter, setStatusFilter] = React.useState('all');
+  const [sort, setSort] = React.useState('newest');
+  const [page, setPage] = React.useState(1);
+  const [pagination, setPagination] = React.useState({ page: 1, pages: 1, total: 0 });
+  const [selectedCustomerId, setSelectedCustomerId] = React.useState(null);
+  const [customerDetails, setCustomerDetails] = React.useState(null);
+  const [loadingDetails, setLoadingDetails] = React.useState(false);
   const { addToast } = useToast();
 
   const loadCustomers = React.useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await api.get('/users/admin');
-      if (res.success && res.data) setCustomers(res.data);
+      const params = new URLSearchParams({ page: String(page), limit: '25' });
+      if (search.trim()) params.set('search', search.trim());
+      if (roleFilter !== 'all') params.set('role', roleFilter);
+      if (statusFilter !== 'all') params.set('status', statusFilter);
+      const res = await api.get(`/users/admin?${params.toString()}`);
+      if (res.success && res.data) {
+        setCustomers(res.data);
+        setPagination(res.pagination || { page, pages: 1, total: res.data.length });
+      }
     } catch (err) {
-      addToast(err.error || 'Failed to load customer list', 'error');
+      addToast(err.error || 'Failed to load customer directory', 'error');
     } finally {
       setLoading(false);
     }
-  }, [addToast]);
+  }, [addToast, page, roleFilter, search, statusFilter]);
 
-  React.useEffect(() => { loadCustomers(); }, [loadCustomers]);
+  React.useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
 
-  const updateRole = async (id, role) => {
+  const openCustomerDetails = async (id) => {
+    setSelectedCustomerId(id);
+    setLoadingDetails(true);
     try {
-      const res = await api.patch(`/users/admin/${id}/role`, { role });
+      const res = await api.get(`/users/admin/${id}`);
+      if (res.success && res.data) {
+        setCustomerDetails(res.data);
+      }
+    } catch (err) {
+      addToast(err.error || 'Failed to load customer profile', 'error');
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleRoleChange = async (id, newRole) => {
+    try {
+      const res = await api.patch(`/users/admin/${id}/role`, { role: newRole });
       if (res.success) {
-        addToast(`User role updated to ${role}`, 'success');
-        setCustomers(prev => prev.map(c => c._id === id ? { ...c, role } : c));
+        addToast(`Role updated to ${newRole}`, 'success');
+        setCustomers(prev => prev.map(c => c._id === id ? { ...c, role: newRole } : c));
+        if (customerDetails && customerDetails._id === id) {
+          setCustomerDetails(prev => ({ ...prev, role: newRole }));
+        }
       }
     } catch (err) {
       addToast(err.error || 'Failed to update role', 'error');
     }
   };
 
-  const toggleStatus = async (id, currentActive) => {
+  const handleStatusToggle = async (id, currentStatus) => {
     try {
-      const res = await api.patch(`/users/admin/${id}/status`, { isActive: !currentActive });
+      const nextStatus = !currentStatus;
+      const res = await api.patch(`/users/admin/${id}/status`, { isActive: nextStatus });
       if (res.success) {
-        addToast(`Customer ${!currentActive ? 'activated' : 'disabled'}`, 'success');
-        setCustomers(prev => prev.map(c => c._id === id ? { ...c, isActive: !currentActive } : c));
+        addToast(`Customer account ${nextStatus ? 'activated' : 'disabled'}`, 'success');
+        setCustomers(prev => prev.map(c => c._id === id ? { ...c, isActive: nextStatus } : c));
+        if (customerDetails && customerDetails._id === id) {
+          setCustomerDetails(prev => ({ ...prev, isActive: nextStatus }));
+        }
       }
     } catch (err) {
-      addToast(err.error || 'Failed to update status', 'error');
+      addToast(err.error || 'Failed to toggle status', 'error');
     }
   };
 
+  const sortedCustomers = React.useMemo(() => {
+    const list = [...customers];
+    if (sort === 'spend') list.sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0));
+    else if (sort === 'orders') list.sort((a, b) => (b.ordersCount || 0) - (a.ordersCount || 0));
+    else if (sort === 'name') list.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    else if (sort === 'oldest') list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    return list;
+  }, [customers, sort]);
+
   return (
     <>
-      <PageHero eyebrow="CRM" title="Customer Directory & Role Management" description="Inspect registered customer accounts, manage role-based permissions, and toggle access states." compact />
+      <PageHero
+        eyebrow="CRM"
+        title="Customer Directory & CRM"
+        description="Inspect customer profiles, loyalty tiers, order history, lifetime spend, and account permissions."
+        compact
+      />
+
+      {/* Filter / Search Controls */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', alignItems: 'center', justifyContent: 'space-between', margin: '20px 0' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
+          <input
+            type="search"
+            aria-label="Search customers"
+            placeholder="Search by name, email, or phone..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(1); }}
+            style={{ minWidth: '240px', padding: '8px 14px', borderRadius: '20px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)' }}
+          />
+
+          <select
+            value={roleFilter}
+            onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
+            style={{ padding: '8px 12px', borderRadius: '20px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)', fontSize: '0.85rem' }}
+          >
+            <option value="all">All Roles</option>
+            <option value="user">Patron / User</option>
+            <option value="support">Support</option>
+            <option value="manager">Manager</option>
+            <option value="admin">Administrator</option>
+          </select>
+
+          <select
+            value={statusFilter}
+            onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
+            style={{ padding: '8px 12px', borderRadius: '20px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)', fontSize: '0.85rem' }}
+          >
+            <option value="all">All Statuses</option>
+            <option value="active">Active Accounts</option>
+            <option value="disabled">Disabled Accounts</option>
+          </select>
+
+          <select
+            value={sort}
+            onChange={e => setSort(e.target.value)}
+            style={{ padding: '8px 12px', borderRadius: '20px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)', fontSize: '0.85rem' }}
+          >
+            <option value="newest">Sort: Newest</option>
+            <option value="oldest">Sort: Oldest</option>
+            <option value="spend">Sort: Highest Spend</option>
+            <option value="orders">Sort: Most Orders</option>
+            <option value="name">Sort: Name (A-Z)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Customers Table */}
       <div className="glass-card table-responsive-wrapper" style={{ padding: '20px' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
-            <tr style={{ borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)' }}>
+            <tr style={{ borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
               <th style={{ padding: '12px' }}>Customer</th>
-              <th style={{ padding: '12px' }}>Loyalty Tier</th>
-              <th style={{ padding: '12px' }}>Role</th>
+              <th style={{ padding: '12px' }}>Tier / Role</th>
+              <th style={{ padding: '12px' }}>Orders</th>
+              <th style={{ padding: '12px' }}>Lifetime Spend</th>
               <th style={{ padding: '12px' }}>Status</th>
-              <th style={{ padding: '12px' }}>Joined Date</th>
+              <th style={{ padding: '12px' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>Loading customer directory...</td></tr>
-            ) : customers.length === 0 ? (
-              <tr><td colSpan={5} style={{ padding: '20px', textAlign: 'center' }}>No customers registered yet.</td></tr>
+              <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center' }}>Loading customer directory...</td></tr>
+            ) : sortedCustomers.length === 0 ? (
+              <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center' }}>No customers match your active filters.</td></tr>
             ) : (
-              customers.map(c => (
+              sortedCustomers.map(c => (
                 <tr key={c._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ padding: '12px' }}>
-                    <strong>{c.name}</strong>
-                    <small style={{ display: 'block', color: 'var(--text-muted)' }}>{c.email}</small>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'linear-gradient(135deg, #14d9ff, #5a20ff)', display: 'grid', placeItems: 'center', fontWeight: '700', fontSize: '0.85rem' }}>
+                        {(c.name || 'U')[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <strong>{c.name}</strong>
+                        <small style={{ display: 'block', color: 'var(--text-muted)' }}>{c.email}</small>
+                      </div>
+                    </div>
                   </td>
                   <td style={{ padding: '12px' }}>
-                    <span className="status-pill" style={{ textTransform: 'capitalize' }}>{c.loyaltyTier || 'Standard'}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span className="status-pill" style={{ textTransform: 'capitalize', width: 'fit-content' }}>{c.loyaltyTier || 'Standard'}</span>
+                      <select
+                        value={c.role}
+                        onChange={e => handleRoleChange(c._id, e.target.value)}
+                        style={{ padding: '2px 6px', borderRadius: '4px', background: 'var(--c-surface-solid)', border: '1px solid var(--c-border)', color: 'var(--text)', fontSize: '0.78rem' }}
+                      >
+                        <option value="user">User</option>
+                        <option value="support">Support</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
                   </td>
-                  <td style={{ padding: '12px' }}>
-                    <select
-                      value={c.role}
-                      onChange={(e) => updateRole(c._id, e.target.value)}
-                      style={{ background: 'var(--c-surface-solid)', color: 'var(--text)', border: '1px solid var(--c-border)', borderRadius: '4px', padding: '4px 8px' }}
-                    >
-                      <option value="user">User</option>
-                      <option value="support">Support</option>
-                      <option value="manager">Manager</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                  </td>
+                  <td style={{ padding: '12px', fontWeight: '600' }}>{c.ordersCount || 0}</td>
+                  <td style={{ padding: '12px', fontWeight: '700', color: 'var(--clr-primary)' }}>{formatPrice(c.totalSpent || 0)}</td>
                   <td style={{ padding: '12px' }}>
                     <button
                       type="button"
-                      onClick={() => toggleStatus(c._id, c.isActive)}
+                      onClick={() => handleStatusToggle(c._id, c.isActive)}
                       style={{
                         padding: '4px 10px',
                         borderRadius: '12px',
                         border: 'none',
-                        fontSize: '0.8rem',
-                        fontWeight: '600',
+                        fontSize: '0.78rem',
+                        fontWeight: '700',
                         cursor: 'pointer',
-                        background: c.isActive ? 'rgba(0, 255, 140, 0.1)' : 'rgba(255, 77, 77, 0.1)',
+                        background: c.isActive ? 'rgba(0, 255, 140, 0.12)' : 'rgba(255, 77, 77, 0.12)',
                         color: c.isActive ? 'var(--clr-green)' : 'var(--clr-red)',
                       }}
                     >
                       {c.isActive ? 'Active' : 'Disabled'}
                     </button>
                   </td>
-                  <td style={{ padding: '12px', color: 'var(--text-muted)' }}>
-                    {new Date(c.createdAt).toLocaleDateString()}
+                  <td style={{ padding: '12px' }}>
+                    <button
+                      type="button"
+                      className="cta-button outline"
+                      onClick={() => openCustomerDetails(c._id)}
+                      style={{ padding: '4px 10px', fontSize: '0.8rem' }}
+                    >
+                      View Profile
+                    </button>
                   </td>
                 </tr>
               ))
@@ -1979,6 +2414,168 @@ export const CustomersPage = () => {
           </tbody>
         </table>
       </div>
+
+      {!loading && pagination.pages > 1 && (
+        <nav className="orders-pagination" aria-label="Customer pages" style={{ marginTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="cta-button outline"
+            disabled={page === 1}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+          >
+            Previous
+          </button>
+          <span>Page {pagination.page} of {pagination.pages} · {pagination.total} customers</span>
+          <button
+            type="button"
+            className="cta-button outline"
+            disabled={page >= pagination.pages}
+            onClick={() => setPage(p => Math.min(pagination.pages, p + 1))}
+          >
+            Next
+          </button>
+        </nav>
+      )}
+
+      {/* Customer Profile & Orders Drawer / Modal */}
+      {selectedCustomerId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', display: 'grid', placeItems: 'center', zIndex: 10000, padding: '20px' }}>
+          <div className="glass-card" style={{ maxWidth: '680px', width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: '30px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--c-border)', paddingBottom: '15px' }}>
+              <div>
+                <span className="page-eyebrow">Customer Profile</span>
+                <h2 style={{ margin: '4px 0 0', fontSize: '1.4rem' }}>{customerDetails?.name || 'Loading profile...'}</h2>
+              </div>
+              <button type="button" className="cta-button outline" onClick={() => { setSelectedCustomerId(null); setCustomerDetails(null); }} style={{ padding: '4px 10px' }}>Close</button>
+            </div>
+
+            {loadingDetails || !customerDetails ? (
+              <div style={{ padding: '30px', textAlign: 'center' }}>Loading customer records...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>
+                {/* Stats Summary */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px' }}>
+                  <div className="premium-card" style={{ padding: '12px', textAlign: 'center' }}>
+                    <small style={{ color: 'var(--text-muted)' }}>Lifetime Spend</small>
+                    <strong style={{ display: 'block', fontSize: '1.2rem', color: 'var(--clr-primary)', marginTop: '4px' }}>{formatPrice(customerDetails.totalSpent || 0)}</strong>
+                  </div>
+                  <div className="premium-card" style={{ padding: '12px', textAlign: 'center' }}>
+                    <small style={{ color: 'var(--text-muted)' }}>Total Orders</small>
+                    <strong style={{ display: 'block', fontSize: '1.2rem', marginTop: '4px' }}>{customerDetails.ordersCount || 0}</strong>
+                  </div>
+                  <div className="premium-card" style={{ padding: '12px', textAlign: 'center' }}>
+                    <small style={{ color: 'var(--text-muted)' }}>Loyalty Tier</small>
+                    <strong style={{ display: 'block', fontSize: '1.2rem', textTransform: 'capitalize', color: 'var(--clr-gold)', marginTop: '4px' }}>{customerDetails.loyaltyTier || 'Standard'}</strong>
+                  </div>
+                  <div className="premium-card" style={{ padding: '12px', textAlign: 'center' }}>
+                    <small style={{ color: 'var(--text-muted)' }}>Role</small>
+                    <strong style={{ display: 'block', fontSize: '1.2rem', textTransform: 'capitalize', marginTop: '4px' }}>{customerDetails.role}</strong>
+                  </div>
+                </div>
+
+                {/* Profile Information */}
+                <div>
+                  <h4 style={{ margin: '0 0 8px' }}>Account Information</h4>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '8px' }}>
+                    <div><strong>Email:</strong> {customerDetails.email}</div>
+                    <div><strong>Phone:</strong> {customerDetails.phone || 'Not provided'}</div>
+                    <div><strong>Joined:</strong> {new Date(customerDetails.createdAt).toLocaleDateString()}</div>
+                    <div><strong>Shopify ID:</strong> {customerDetails.shopifyCustomerId || 'Direct User'}</div>
+                  </div>
+                </div>
+
+                {/* Customer Order History */}
+                <div style={{ borderTop: '1px solid var(--c-border)', paddingTop: '15px' }}>
+                  <h4 style={{ margin: '0 0 10px' }}>Order History ({customerDetails.orders?.length || 0})</h4>
+                  {customerDetails.orders?.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {customerDetails.orders.map(o => (
+                        <div key={o._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid var(--c-border)' }}>
+                          <div>
+                            <strong>{o.orderNumber || `MM-${(o._id || '').slice(-6).toUpperCase()}`}</strong>
+                            <small style={{ display: 'block', color: 'var(--text-muted)' }}>{new Date(o.createdAt).toLocaleDateString()} · {o.items?.length || 0} items</small>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span className="status-pill">{o.status}</span>
+                            <strong>{formatPrice(o.total)}</strong>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No previous orders found for this customer.</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+export const CustomerDetailsPage = ({ id }) => {
+  const [customer, setCustomer] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    let active = true;
+    api.get(`/users/admin/${encodeURIComponent(id)}`)
+      .then(res => {
+        if (active && res.success) setCustomer(res.data);
+      })
+      .catch(err => {
+        if (active) setError(err.error || 'Unable to load customer profile.');
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => { active = false; };
+  }, [id]);
+
+  if (loading) return <div className="empty-state" role="status">Loading customer details…</div>;
+  if (error || !customer) return <div className="empty-state" role="alert"><strong>Customer unavailable</strong><p>{error || 'Customer not found.'}</p></div>;
+
+  return (
+    <>
+      <PageHero eyebrow="Customer details" title={customer.name} description="Persisted customer profile and order history." compact />
+      <section className="customer-detail-grid">
+        <article className="glass-card customer-detail-panel">
+          <span className="status-pill">{customer.isActive ? 'Active' : 'Disabled'}</span>
+          <h2>{customer.email}</h2>
+          <p>{customer.phone || 'Phone not provided'}</p>
+          <h3>Profile</h3>
+          <p>
+            {customer.shopifyCustomerId ? `Shopify ID: ${customer.shopifyCustomerId}` : 'Direct user account'}<br />
+            Joined {customer.createdAt ? new Date(customer.createdAt).toLocaleDateString() : '—'}<br />
+            Tier: {customer.loyaltyTier || 'Standard'}
+          </p>
+        </article>
+        <article className="glass-card customer-detail-panel">
+          <div className="order-detail-heading">
+            <h2>Order history</h2>
+            <span className="status-pill">{customer.ordersCount || 0} orders</span>
+          </div>
+          <p>Total spent: {formatPrice(customer.totalSpent || 0)}</p>
+          {customer.orders?.length ? (
+            <div className="customer-order-list">
+              {customer.orders.map(order => (
+                <div className="customer-order-row" key={order._id}>
+                  <span>
+                    <strong>{order.orderNumber || order._id}</strong>
+                    <small>{new Date(order.createdAt).toLocaleDateString()} · {order.status}</small>
+                  </span>
+                  <strong>{formatPrice(order.total)}</strong>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state"><strong>No orders yet</strong><p>This customer has no persisted orders.</p></div>
+          )}
+        </article>
+      </section>
     </>
   );
 };

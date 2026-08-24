@@ -23,6 +23,7 @@ import usersRouter from './routes/users.js';
 import analyticsRouter from './routes/analytics.js';
 import newsletterRouter from './routes/newsletter.js';
 import productSyncRouter from './routes/productSync.js';
+import customersRouter from './routes/customers.js';
 
 const app = express();
 
@@ -68,6 +69,7 @@ app.use('/api', apiLimiter);
 /* ── Routes ── */
 app.use('/api/health', healthRouter);
 app.use('/api/products/sync', productSyncRouter);
+app.use('/api/customers', customersRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/orders', ordersRouter);

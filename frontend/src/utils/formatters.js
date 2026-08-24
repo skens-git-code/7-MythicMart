@@ -1,10 +1,10 @@
 /* Utility functions for formatting display values */
 
 /* Format a number as USD currency (e.g. $19.99) */
-export const formatPrice = (price) => {
+export const formatPrice = (price, currency = 'USD') => {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency: 'USD',
+        currency: currency || 'USD',
     }).format(price);
 };
 

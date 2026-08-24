@@ -6,6 +6,14 @@ const adminEndpoint = () => `https://${config.shopify.storeDomain}/admin/api/${c
 const isConfigured = () => Boolean(config.shopify.storeDomain && config.shopify.adminAccessToken && !config.shopify.storeDomain.includes('your-store-domain'));
 const money = value => value == null || value === '' ? null : Number(value);
 const cleanText = value => String(value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+const imageUrl = value => {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  if (trimmed.startsWith('http://')) return `https://${trimmed.slice('http://'.length)}`;
+  return trimmed;
+};
+const normalizeImages = images => images.map(image => ({ ...image, url: imageUrl(image.url) })).filter(image => image.url);
 const categoryFor = node => {
   const value = `${node.productType || ''} ${node.tags?.join(' ') || ''}`.toLowerCase();
   return ['accessories', 'bags', 'electronics', 'clothing', 'footwear'].find(item => value.includes(item)) || 'other';
@@ -15,7 +23,7 @@ const ADMIN_PRODUCTS_QUERY = `#graphql query Products($first: Int!, $after: Stri
 
 export const normalizeShopifyAdminProduct = node => {
   const variants = node.variants?.nodes || [];
-  const images = node.images?.nodes?.length ? node.images.nodes : (node.featuredImage ? [node.featuredImage] : []);
+  const images = normalizeImages(node.images?.nodes?.length ? node.images.nodes : (node.featuredImage ? [node.featuredImage] : []));
   const first = variants[0] || {};
   const inventory = variants.reduce((sum, item) => sum + Math.max(0, Number(item.inventoryQuantity || 0)), 0);
   return {
@@ -25,7 +33,7 @@ export const normalizeShopifyAdminProduct = node => {
     brand: node.vendor || 'MythicMart', productType: node.productType || '', shopifyStatus: node.status, shopifyTags: [...new Set(node.tags || [])],
     category: categoryFor(node), collectionName: node.collections?.nodes?.[0]?.title || '',
     price: money(first.price) ?? 0, originalPrice: money(first.compareAtPrice), image: images[0]?.url || null, images,
-    variants: variants.map(item => ({ shopifyVariantId: item.id, title: item.title, sku: item.sku || undefined, price: money(item.price) ?? 0, compareAtPrice: money(item.compareAtPrice), inventoryQuantity: Math.max(0, Number(item.inventoryQuantity || 0)), availableForSale: Boolean(item.availableForSale), selectedOptions: item.selectedOptions || [], image: item.image?.url || undefined })),
+    variants: variants.map(item => ({ shopifyVariantId: item.id, title: item.title, sku: item.sku || undefined, price: money(item.price) ?? 0, compareAtPrice: money(item.compareAtPrice), inventoryQuantity: Math.max(0, Number(item.inventoryQuantity || 0)), availableForSale: Boolean(item.availableForSale), selectedOptions: item.selectedOptions || [], image: imageUrl(item.image?.url) || undefined })),
     shopifyVariantIds: [...new Set(variants.map(item => item.id).filter(Boolean))], options: node.options || [], variantId: first.id || node.id,
     stock: Math.max(0, Number(node.totalInventory ?? inventory)), isActive: node.status === 'ACTIVE', freeShipping: false,
     shopifyProductCreatedAt: node.createdAt, shopifyProductUpdatedAt: node.updatedAt,

@@ -7,12 +7,27 @@ import { syncShopifyProducts, getShopifySyncStatus } from './shopifySyncService.
 const storefrontConfigured = () => Boolean(config.shopify.storeDomain && config.shopify.storefrontAccessToken && !config.shopify.storeDomain.includes('your-store-domain'));
 const localCatalogMode = () => !config.shopify.storeDomain || config.shopify.storeDomain.includes('your-store-domain');
 const databaseReady = () => mongoose.connection.readyState === 1;
+const imageUrl = value => {
+  if (!value || typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  if (trimmed.startsWith('http://')) return `https://${trimmed.slice('http://'.length)}`;
+  return trimmed;
+};
 const client = () => {
   if (!storefrontConfigured()) throw new Error('Shopify Storefront credentials are not configured.');
   return new GraphQLClient(`https://${config.shopify.storeDomain}/api/${config.shopify.apiVersion}/graphql.json`, { headers: { 'X-Shopify-Storefront-Access-Token': config.shopify.storefrontAccessToken, 'Content-Type': 'application/json' } });
 };
 
-const normalizeDatabaseProduct = product => ({ ...product, id: product._id?.toString() || product.id, collection: product.collectionName, variantId: product.variantId || product.shopifyVariantIds?.[0] || product.id, image: product.image || product.images?.[0]?.url || null });
+const normalizeDatabaseProduct = product => ({
+  ...product,
+  id: product._id?.toString() || product.id,
+  collection: product.collectionName,
+  variantId: product.variantId || product.shopifyVariantIds?.[0] || product.id,
+  image: imageUrl(product.image || product.images?.[0]?.url),
+  images: (product.images || []).map(item => typeof item === 'string' ? imageUrl(item) : { ...item, url: imageUrl(item.url) }).filter(item => typeof item === 'string' ? item : item.url),
+  variants: (product.variants || []).map(item => ({ ...item, image: imageUrl(item.image) || undefined })),
+});
 
 export const getProducts = async ({ limit = 20, page = 1, sortKey = 'CREATED_AT', reverse = true, query = '', category = '' } = {}) => {
   if (!databaseReady()) return { products: [], total: 0, page, limit, pages: 0, syncStatus: 'database_unavailable' };

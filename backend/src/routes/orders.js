@@ -10,11 +10,17 @@ import { asyncHandler, sendSuccess, sendError } from '../utils/apiResponse.js';
 import { authorize, protect, optionalAuth } from '../middleware/auth.js';
 import { requireDatabase } from '../middleware/requireDatabase.js';
 import { config } from '../config/env.js';
+import { syncShopifyOrders, getShopifyOrderSyncStatus } from '../services/shopifyOrderSyncService.js';
 
 const router = Router();
 
 const TAX_RATE = 0.08; /* 8% */
 router.use(requireDatabase);
+
+router.get('/sync/status', protect, authorize('admin', 'manager', 'support'), asyncHandler(async (req, res) => sendSuccess(res, await getShopifyOrderSyncStatus())));
+router.post('/sync', protect, authorize('admin', 'manager'), asyncHandler(async (req, res) => {
+  try { return sendSuccess(res, await syncShopifyOrders()); } catch (error) { return sendError(res, error.message || 'Order synchronization failed', 502); }
+}));
 
 const validateRequest = (req, res, next) => {
   const errors = validationResult(req);
@@ -65,15 +71,10 @@ router.post(
       for (const item of items) {
         let product = productsById.get(item.productId);
         if (!product) {
-          // If in static mode or newly added catalog item
-          product = {
-            _id: new mongoose.Types.ObjectId(),
-            name: item.name || 'Mythic Item',
-            price: Number(item.price) || 99,
-            image: item.image || '/assets/product-placeholder.png',
-            stock: 99,
-            reservedStock: 0,
-          };
+          for (const reserved of reservedItems) {
+            await Product.findByIdAndUpdate(reserved.productId, { $inc: { stock: reserved.quantity } });
+          }
+          return sendError(res, 'One or more products are no longer available in the catalog.', 409);
         } else if (product.stock - (product.reservedStock || 0) < item.quantity) {
           if (config.isTest || !config.isProduction) {
             await Product.findByIdAndUpdate(product._id, { $set: { stock: 50, reservedStock: 0 } });
@@ -96,9 +97,9 @@ router.post(
         const hasValidMongoId = product?._id && mongoose.Types.ObjectId.isValid(product._id);
         return {
           productId: hasValidMongoId ? product._id : null,
-          name: product?.name || item.name || 'Mythic Item',
-          image: product?.image || item.image || '/assets/product-placeholder.png',
-          price: product?.price != null ? product.price : (Number(item.price) || 99),
+          name: product.name,
+          image: product.image || product.images?.[0]?.url || null,
+          price: product.price,
           quantity: item.quantity,
         };
       });
@@ -152,12 +153,25 @@ router.post(
 
 /* GET /api/orders/my — authenticated user's order history */
 router.get('/my', protect, asyncHandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id })
-    .sort({ createdAt: -1 })
-    .limit(50)
-    .lean();
+  const { status, search, page = 1, limit = 25, sort = 'newest' } = req.query;
+  const filter = { user: req.user._id };
+  if (status && status !== 'all') filter.status = status;
+  if (search) {
+    filter.$or = [
+      { orderNumber: { $regex: search, $options: 'i' } },
+      { 'items.name': { $regex: search, $options: 'i' } },
+    ];
+  }
 
-  sendSuccess(res, orders);
+  const pageNumber = Math.max(1, Number(page));
+  const limitNumber = Math.min(100, Math.max(1, Number(limit)));
+  const sortBy = sort === 'oldest' ? { createdAt: 1 } : sort === 'total-high' ? { total: -1, createdAt: -1 } : sort === 'total-low' ? { total: 1, createdAt: -1 } : { createdAt: -1 };
+  const [orders, total] = await Promise.all([
+    Order.find(filter).sort(sortBy).skip((pageNumber - 1) * limitNumber).limit(limitNumber).lean(),
+    Order.countDocuments(filter),
+  ]);
+
+  sendSuccess(res, orders, 200, { pagination: { page: pageNumber, limit: limitNumber, total, pages: Math.ceil(total / limitNumber) } });
 }));
 
 /* GET /api/orders/admin — role-protected order management list */
@@ -168,18 +182,37 @@ router.get(
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer').toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100').toInt(),
-    query('status').optional().isIn(['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'returned']).withMessage('Invalid order status'),
+    query('status').optional().isIn(['all', 'pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'returned']).withMessage('Invalid order status'),
+    query('fulfillmentStatus').optional().isIn(['all', 'unfulfilled', 'partially_fulfilled', 'fulfilled', 'cancelled']).withMessage('Invalid fulfillment status'),
+    query('search').optional().trim().isLength({ max: 80 }).withMessage('Search query is too long'),
+    query('from').optional().isISO8601().withMessage('Invalid start date'),
+    query('to').optional().isISO8601().withMessage('Invalid end date'),
+    query('sort').optional().isIn(['newest', 'oldest', 'total-high', 'total-low']).withMessage('Invalid order sort'),
   ],
   validateRequest,
   asyncHandler(async (req, res) => {
-    const { page = 1, limit = 25, status } = req.query;
+    const { page = 1, limit = 25, status, fulfillmentStatus, search, from, to, sort = 'newest' } = req.query;
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
-    const filter = status ? { status } : {};
+    const filter = {};
+    if (status && status !== 'all') filter.status = status;
+    if (fulfillmentStatus && fulfillmentStatus !== 'all') filter.fulfillmentStatus = fulfillmentStatus;
+    if (from || to) filter.createdAt = { ...(from ? { $gte: new Date(from) } : {}), ...(to ? { $lte: new Date(`${to}T23:59:59.999Z`) } : {}) };
+    if (search) {
+      filter.$or = [
+        { orderNumber: { $regex: search, $options: 'i' } },
+        { guestEmail: { $regex: search, $options: 'i' } },
+        { 'customer.email': { $regex: search, $options: 'i' } },
+        { 'customer.name': { $regex: search, $options: 'i' } },
+        { 'items.name': { $regex: search, $options: 'i' } },
+        { 'shippingAddress.name': { $regex: search, $options: 'i' } },
+      ];
+    }
+    const sortBy = sort === 'oldest' ? { createdAt: 1 } : sort === 'total-high' ? { total: -1, createdAt: -1 } : sort === 'total-low' ? { total: 1, createdAt: -1 } : { createdAt: -1 };
 
     const [orders, total] = await Promise.all([
       Order.find(filter)
-        .sort({ createdAt: -1 })
+        .sort(sortBy)
         .skip((pageNumber - 1) * limitNumber)
         .limit(limitNumber)
         .populate('user', 'name email role')
@@ -199,7 +232,7 @@ router.patch(
   protect,
   authorize('admin', 'manager', 'support'),
   [
-    param('id').isMongoId().withMessage('Invalid order id'),
+    param('id').trim().notEmpty().withMessage('Invalid order id or orderNumber'),
     body('status').isIn(['pending', 'confirmed', 'packed', 'shipped', 'delivered', 'cancelled', 'returned']).withMessage('Invalid order status'),
     body('message').optional().trim().isLength({ max: 240 }).withMessage('Message cannot exceed 240 characters'),
     body('tracking.carrier').optional({ nullable: true }).trim().isLength({ max: 80 }).withMessage('Carrier cannot exceed 80 characters'),
@@ -208,9 +241,23 @@ router.patch(
   ],
   validateRequest,
   asyncHandler(async (req, res) => {
+    const isMongoId = mongoose.Types.ObjectId.isValid(req.params.id);
+    const queryObj = isMongoId ? { _id: req.params.id } : { orderNumber: req.params.id };
+
+    const fulfillmentMap = {
+      'pending': 'unfulfilled',
+      'confirmed': 'unfulfilled',
+      'packed': 'partially_fulfilled',
+      'shipped': 'fulfilled',
+      'delivered': 'fulfilled',
+      'cancelled': 'cancelled',
+      'returned': 'cancelled',
+    };
+
     const updates = {
       $set: {
         status: req.body.status,
+        fulfillmentStatus: fulfillmentMap[req.body.status] || 'unfulfilled',
       },
       $push: {
         timeline: {
@@ -229,7 +276,7 @@ router.patch(
       };
     }
 
-    const order = await Order.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' }).lean();
+    const order = await Order.findOneAndUpdate(queryObj, updates, { returnDocument: 'after' }).lean();
     if (!order) return sendError(res, 'Order not found', 404);
 
     sendSuccess(res, order);
@@ -237,15 +284,15 @@ router.patch(
 );
 
 /* GET /api/orders/:id — get single order (owner or admin) */
-router.get('/:id', protect, param('id').isMongoId().withMessage('Invalid order id'), asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return sendError(res, errors.array()[0].msg, 422);
+router.get('/:id', protect, asyncHandler(async (req, res) => {
+  const isMongoId = mongoose.Types.ObjectId.isValid(req.params.id);
+  const queryObj = isMongoId ? { _id: req.params.id } : { orderNumber: req.params.id };
 
-  const order = await Order.findById(req.params.id).lean();
+  const order = await Order.findOne(queryObj).populate('user', 'name email role').lean();
   if (!order) return sendError(res, 'Order not found', 404);
 
-  const isOwner = order.user?.toString() === req.user._id.toString();
-  const isAdmin = req.user.role === 'admin';
+  const isOwner = order.user?._id?.toString() === req.user._id.toString() || order.user?.toString() === req.user._id.toString();
+  const isAdmin = ['admin', 'manager', 'support'].includes(req.user.role);
   if (!isOwner && !isAdmin) return sendError(res, 'Not authorized to view this order', 403);
 
   sendSuccess(res, order);

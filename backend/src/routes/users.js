@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { body, param, query, validationResult } from 'express-validator';
 import User from '../models/User.js';
 import Product from '../models/Product.js';
+import Order from '../models/Order.js';
 import { authorize, protect } from '../middleware/auth.js';
 import { requireDatabase } from '../middleware/requireDatabase.js';
 import { asyncHandler, sendError, sendSuccess } from '../utils/apiResponse.js';
@@ -23,15 +24,24 @@ router.get(
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer').toInt(),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100').toInt(),
-    query('role').optional().isIn(['user', 'support', 'manager', 'admin']).withMessage('Invalid role'),
-    query('status').optional().isIn(['active', 'disabled']).withMessage('Invalid status'),
+    query('role').optional().isIn(['all', 'user', 'support', 'manager', 'admin']).withMessage('Invalid role'),
+    query('status').optional().isIn(['all', 'active', 'disabled']).withMessage('Invalid status'),
+    query('search').optional().trim().isLength({ max: 80 }).withMessage('Search query too long'),
   ],
   validate,
   asyncHandler(async (req, res) => {
-    const { page = 1, limit = 25, role, status } = req.query;
+    const { page = 1, limit = 25, role, status, search } = req.query;
     const queryFilter = {};
-    if (role) queryFilter.role = role;
-    if (status) queryFilter.isActive = status === 'active';
+    if (role && role !== 'all') queryFilter.role = role;
+    if (status && status !== 'all') queryFilter.isActive = status === 'active';
+    if (search) {
+      queryFilter.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { shopifyCustomerId: { $regex: search, $options: 'i' } },
+      ];
+    }
 
     const pageNumber = Number(page);
     const limitNumber = Number(limit);
@@ -39,7 +49,7 @@ router.get(
 
     const [users, total] = await Promise.all([
       User.find(queryFilter)
-        .select('name email role loyaltyTier isActive emailVerified lastLoginAt createdAt')
+        .select('name email phone avatar role loyaltyTier totalSpent ordersCount isActive emailVerified lastLoginAt createdAt shopifyCustomerId')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNumber)
@@ -47,8 +57,52 @@ router.get(
       User.countDocuments(queryFilter),
     ]);
 
-    sendSuccess(res, users, 200, {
+    // Enhance users with live spending and order count from Order collection
+    const userIds = users.map(u => u._id);
+    const orderAggregates = await Order.aggregate([
+      { $match: { user: { $in: userIds } } },
+      { $group: { _id: '$user', totalOrders: { $sum: 1 }, totalSpent: { $sum: '$total' } } }
+    ]);
+    const ordersMap = new Map();
+    orderAggregates.forEach(agg => ordersMap.set(agg._id.toString(), agg));
+
+    const enrichedUsers = users.map(u => {
+      const stats = ordersMap.get(u._id.toString());
+      return {
+        ...u,
+        ordersCount: stats ? stats.totalOrders : (u.ordersCount || 0),
+        totalSpent: stats ? stats.totalSpent : (u.totalSpent || 0),
+      };
+    });
+
+    sendSuccess(res, enrichedUsers, 200, {
       pagination: { page: pageNumber, limit: limitNumber, total, pages: Math.ceil(total / limitNumber) },
+    });
+  })
+);
+
+router.get(
+  '/admin/:id',
+  authorize('admin', 'manager'),
+  [param('id').isMongoId().withMessage('Invalid customer id')],
+  validate,
+  asyncHandler(async (req, res) => {
+    const user = await User.findById(req.params.id)
+      .select('-password')
+      .lean();
+    if (!user) return sendError(res, 'Customer not found', 404);
+
+    const orders = await Order.find({ user: user._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const lifetimeSpent = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+
+    sendSuccess(res, {
+      ...user,
+      orders,
+      ordersCount: orders.length,
+      totalSpent: lifetimeSpent,
     });
   })
 );

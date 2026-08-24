@@ -8,9 +8,14 @@ const orderItemSchema = new mongoose.Schema(
       ref: 'Product',
       default: null, /* null for guest orders with no DB product */
     },
+    shopifyProductId: { type: String, trim: true, default: null },
+    shopifyVariantId: { type: String, trim: true, default: null },
+    sku: { type: String, trim: true, default: null },
     name: { type: String, required: true },
-    image: { type: String, required: true },
+    image: { type: String, default: null },
     price: { type: Number, required: true, min: 0 },
+    discountAmount: { type: Number, default: 0, min: 0 },
+    taxAmount: { type: Number, default: 0, min: 0 },
     quantity: { type: Number, required: true, min: 1 },
   },
   { _id: false }
@@ -23,6 +28,7 @@ const orderSchema = new mongoose.Schema(
       ref: 'User',
       default: null, /* null = guest order */
     },
+    source: { type: String, enum: ['local', 'shopify'], default: 'local', index: true },
     guestEmail: {
       type: String,
       default: null,
@@ -30,6 +36,39 @@ const orderSchema = new mongoose.Schema(
       trim: true,
       match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email address'],
     },
+    orderNumber: {
+      type: String,
+      trim: true,
+    },
+    shopifyOrderId: {
+      type: String,
+      trim: true,
+      unique: true,
+      sparse: true,
+    },
+    currency: { type: String, trim: true, uppercase: true, default: 'USD' },
+    customer: {
+      shopifyCustomerId: { type: String, trim: true, default: null },
+      name: { type: String, trim: true, default: null },
+      email: { type: String, trim: true, lowercase: true, default: null },
+      phone: { type: String, trim: true, default: null },
+    },
+    fulfillmentStatus: {
+      type: String,
+      enum: ['unfulfilled', 'partially_fulfilled', 'fulfilled', 'cancelled'],
+      default: 'unfulfilled',
+    },
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    shippingAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    shippingLines: [{ title: String, price: { type: Number, min: 0 }, code: String }],
     items: {
       type: [orderItemSchema],
       validate: [arr => arr.length > 0, 'Order must have at least one item'],
@@ -82,10 +121,20 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
+/* Auto-generate human-friendly orderNumber if not provided */
+orderSchema.pre('save', function () {
+  if (!this.orderNumber) {
+    this.orderNumber = `MM-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  }
+});
+
 /* ── Indexes ── */
+orderSchema.index({ orderNumber: 1 }, { unique: true, sparse: true });
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ status: 1, createdAt: -1 });
 orderSchema.index({ paymentStatus: 1, createdAt: -1 });
+orderSchema.index({ fulfillmentStatus: 1, createdAt: -1 });
+orderSchema.index({ 'customer.email': 1, createdAt: -1 }, { sparse: true });
 orderSchema.index({ guestEmail: 1, createdAt: -1 }, { sparse: true });
 orderSchema.index({ createdAt: -1 });
 

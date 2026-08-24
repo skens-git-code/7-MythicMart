@@ -3,6 +3,7 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import User from '../models/User.js';
+import Customer from '../models/Customer.js';
 import { asyncHandler, sendSuccess, sendError } from '../utils/apiResponse.js';
 import { protect } from '../middleware/auth.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
@@ -46,6 +47,7 @@ router.post('/register', authLimiter, registerRules, validate, asyncHandler(asyn
   if (existing) return sendError(res, 'An account with this email already exists', 409);
 
   const user = await User.create({ name, email, password });
+  await Customer.updateOne({ email }, { $set: { user: user._id, name, lastActivityAt: new Date() }, $setOnInsert: { source: 'local', email, status: 'active' } }, { upsert: true, runValidators: true });
   const token = signToken(user._id);
 
   sendSuccess(res, {

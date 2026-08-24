@@ -23,9 +23,11 @@ import {
   IntegrationsPage,
   InventoryPage,
   CustomersPage,
+  CustomerDetailsPage,
   CouponsPage,
   ActivityPage,
   OrdersPage,
+  OrderDetailsPage,
   OTPVerificationPage,
   ProductDetailsPage,
   ProductsPage,
@@ -48,6 +50,12 @@ const AppRouter = () => {
   const routeElement = useMemo(() => {
     if (route.startsWith('/products/') && route !== ROUTES.PRODUCTS) {
       return <ProductDetailsPage slug={route.split('/').at(-1)} />;
+    }
+    if (route.startsWith('/orders/') && route !== ROUTES.ORDERS) {
+      return <ProtectedRoute><OrderDetailsPage id={route.split('/').at(-1)} /></ProtectedRoute>;
+    }
+    if (route.startsWith('/customers/') && route !== ROUTES.CUSTOMERS) {
+      return <ProtectedRoute roles={['admin', 'manager']}><CustomerDetailsPage id={route.split('/').at(-1)} /></ProtectedRoute>;
     }
 
     const routes = {

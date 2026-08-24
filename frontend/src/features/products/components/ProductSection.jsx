@@ -149,6 +149,10 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
                     decoding="async"
                     width="520"
                     height="520"
+                    onError={(event) => {
+                      event.currentTarget.hidden = true;
+                      event.currentTarget.parentElement.classList.add('image-load-failed');
+                    }}
                   />
                   {product.badge && (
                     <span className="talk-date" style={{ left: '18px', right: 'auto', backgroundColor: 'var(--clr-primary)', color: '#000' }}>

@@ -3,6 +3,19 @@
   gap: 1.1rem;
 }
 
+.image-load-failed {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  background: var(--c-surface-solid);
+}
+
+.image-load-failed::after {
+  content: 'Image unavailable';
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
 .product-section-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

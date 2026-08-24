@@ -32,6 +32,10 @@ const userSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    shopifyCustomerId: {
+      type: String,
+      trim: true,
+    },
     avatar: {
       type: String,
       default: null,
@@ -44,9 +48,31 @@ const userSchema = new mongoose.Schema(
     },
     loyaltyTier: {
       type: String,
-      enum: ['standard', 'gold', 'platinum'],
+      enum: ['standard', 'gold', 'platinum', 'vip'],
       default: 'standard',
     },
+    totalSpent: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    ordersCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    addresses: [
+      {
+        label: { type: String, default: 'Default' },
+        name: { type: String, trim: true },
+        line1: { type: String, trim: true },
+        city: { type: String, trim: true },
+        state: { type: String, trim: true },
+        zip: { type: String, trim: true },
+        country: { type: String, default: 'US' },
+        isDefault: { type: Boolean, default: false },
+      }
+    ],
     preferences: {
       theme: { type: String, enum: ['system', 'light', 'dark'], default: 'system' },
       currency: { type: String, default: 'USD', maxlength: 8 },
