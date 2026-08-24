@@ -1,4 +1,4 @@
-/* Global error boundary — catches render errors and shows fallback UI */
+/* Global error boundary — catches UI errors and shows fallback UI */
 import React from 'react';
 
 class ErrorBoundary extends React.Component {

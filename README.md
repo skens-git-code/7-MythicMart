@@ -17,10 +17,6 @@
 
 ---
 
-<div align="center">
-  <img src="https://capsule-render.vercel.app/api?type=soft&color=gradient&customColorList=0,2,4,6,8&height=2&width=800" />
-</div>
-
 <br>
 
 ## 📖 Table of Contents
@@ -107,7 +103,7 @@ const CartProvider = ({ children }) => {
 ### ⚡ **Performance Optimized**
 - **Vite-Powered** — Sub-second HMR, optimized production builds
 - **Code Splitting** — Route-based lazy loading
-- **Memoized Components** — Prevent unnecessary re-renders
+- **Memoized Components** — Prevent unnecessary component updates
 - **Tree Shaking** — Eliminate dead code
 
 ---
@@ -683,7 +679,6 @@ of this software and associated documentation files...
 <div align="center">
   <br>
   
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=gradient&customColorList=0,2,4,6,8&height=120&section=footer&text=MythicMart%20–%20Where%20E-commerce%20Meets%20Art&fontSize=24&fontColor=white&animation=twinkling" />
   
   <br>
   <br>
