@@ -56,6 +56,10 @@ export const config = Object.freeze({
       max: toInteger(process.env.AUTH_RATE_LIMIT_MAX, 20, { min: 1 }),
     },
   },
+  shopify: {
+    storeDomain: process.env.SHOPIFY_STORE_DOMAIN || '',
+    storefrontAccessToken: process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN || '',
+  },
 });
 
 export const validateEnv = () => {

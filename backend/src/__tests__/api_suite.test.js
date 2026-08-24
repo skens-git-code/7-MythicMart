@@ -423,3 +423,9 @@ test('BACKEND MASTER QA TEST SUITE', async (t) => {
     });
   });
 });
+
+test.after(async () => {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.disconnect();
+  }
+});

@@ -8,7 +8,8 @@ import { useProducts } from '../../../hooks/useProducts';
 import { api } from '../../../services/api';
 import CategoryFilter from './CategoryFilter';
 import { formatPrice } from '../../../utils/formatters';
-import { toHashPath } from '../../../utils/routes';
+import { CATEGORIES } from '../../../utils/constants';
+import { ROUTES, toHashPath } from '../../../utils/routes';
 import '../../../styles/ProductSection.css';
 
 const sortOptions = [
@@ -29,16 +30,29 @@ const ProductSkeleton = () => (
   </article>
 );
 
+const getCategoryFromHash = () => {
+  if (typeof window === 'undefined') return 'all';
+  const query = window.location.hash.split('?')[1] || '';
+  const category = new URLSearchParams(query).get('category');
+  return CATEGORIES.some(item => item.id === category) ? category : 'all';
+};
+
 const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow = 'Live catalog' }) => {
   const { addItem } = useCart();
   const { addToast } = useToast();
   const { user } = useAuth();
   const { searchQuery, clearSearch } = useUI();
-  const [activeCategory, setActiveCategory] = useState('all');
+  const [activeCategory, setActiveCategory] = useState(getCategoryFromHash);
   const [sort, setSort] = useState('newest');
 
   const trimmedSearch = searchQuery.trim();
   const { products: displayProducts, loading, error } = useProducts(activeCategory, sort, trimmedSearch);
+
+  const handleCategoryChange = useCallback((category) => {
+    setActiveCategory(category);
+    const query = category === 'all' ? '' : `?category=${encodeURIComponent(category)}`;
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${ROUTES.PRODUCTS}${query}`);
+  }, []);
 
   const handleAddToCart = useCallback((product) => {
     addItem(product);
@@ -46,14 +60,23 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
   }, [addItem, addToast]);
 
   const handleWishlist = useCallback(async (product) => {
-    if (user && product._id) {
-      try {
-        await api.post(`/users/wishlist/${product._id}`);
-      } catch (err) {
-        console.warn('Wishlist sync warning:', err);
-      }
+    if (!user) {
+      addToast('Sign in to save products to your wishlist', 'info');
+      return;
     }
-    addToast(`${product.name} saved to wishlist`, 'success');
+
+    if (!product._id) {
+      addToast('Wishlist sync is unavailable while the catalog is offline', 'info');
+      return;
+    }
+
+    try {
+      const response = await api.post(`/users/wishlist/${product._id}`);
+      if (!response.success) throw new Error(response.error || 'Wishlist sync failed');
+      addToast(`${product.name} saved to wishlist`, 'success');
+    } catch (err) {
+      addToast(err.error || 'Could not save this product right now', 'error');
+    }
   }, [user, addToast]);
 
   return (
@@ -89,7 +112,7 @@ const ProductSection = ({ title = 'Trending and Featured Collections', eyebrow =
           </div>
         </div>
 
-        <CategoryFilter activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+        <CategoryFilter activeCategory={activeCategory} onCategoryChange={handleCategoryChange} />
 
         {error && (
           <div className="glass-card" role="status" style={{ padding: '20px', textAlign: 'center', color: 'var(--warning)', marginBottom: '20px' }}>

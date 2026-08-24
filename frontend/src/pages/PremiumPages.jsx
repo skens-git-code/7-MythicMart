@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import HeroSection from '../components/common/HeroSection';
 import ProductSection from '../features/products/components/ProductSection';
-import CategoryFilter from '../features/products/components/CategoryFilter';
 import AuthPanel from '../features/auth/components/AuthPanel';
 import products from '../data/products';
 import {
@@ -47,7 +46,6 @@ import {
   testimonials,
 } from '../data/siteContent';
 import { useCart } from '../hooks/useCart';
-import { useUI } from '../context/UIContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../hooks/useTheme';
@@ -190,7 +188,12 @@ export const HomePage = () => (
       </div>
       <div className="category-showcase-grid">
         {categoryShowcase.map(({ id, title, stat, tone, icon }) => (
-          <a className="category-showcase-card" href={toHashPath(ROUTES.PRODUCTS)} key={id}>
+          <a
+            className="category-showcase-card"
+            href={toHashPath(`${ROUTES.PRODUCTS}?category=${encodeURIComponent(id)}`)}
+            key={id}
+            aria-label={`Browse ${title} products`}
+          >
             {React.createElement(icon, { size: 22, 'aria-hidden': true })}
             <h3>{title}</h3>
             <p>{tone}</p>
@@ -282,13 +285,17 @@ export const ProductsPage = () => (
 );
 
 export const CategoriesPage = () => {
-  const { setSearchQuery } = useUI();
   return (
     <>
       <PageHero eyebrow="Categories" title="Collections built for quick discovery." description="Each category is optimized for merchandising, filtering, and future personalized ranking." compact />
       <div className="category-showcase-grid">
         {categoryShowcase.map(({ id, title, stat, tone, icon }) => (
-          <a className="category-showcase-card" href={toHashPath(ROUTES.PRODUCTS)} key={id} onClick={() => setSearchQuery('')}>
+          <a
+            className="category-showcase-card"
+            href={toHashPath(`${ROUTES.PRODUCTS}?category=${encodeURIComponent(id)}`)}
+            key={id}
+            aria-label={`Browse ${title} products`}
+          >
             {React.createElement(icon, { size: 22, 'aria-hidden': true })}
             <h3>{title}</h3>
             <p>{tone}</p>

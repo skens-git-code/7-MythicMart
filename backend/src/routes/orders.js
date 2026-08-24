@@ -20,109 +20,34 @@ const validateRequest = (req, res, next) => {
   next();
 };
 
+import * as shopifyService from '../services/shopifyService.js';
+
 /* POST /api/orders — create order (guest or authenticated) */
 router.post(
   '/',
   optionalAuth,
   [
     body('items').isArray({ min: 1, max: 50 }).withMessage('Order must have between 1 and 50 items'),
-    body('items.*.productId').optional({ nullable: true }).isMongoId().withMessage('Invalid product id'),
-    body('items.*.name').trim().notEmpty().withMessage('Item name is required').isLength({ max: 100 }),
-    body('items.*.price').isFloat({ min: 0 }).withMessage('Item price must be a positive number'),
+    body('items.*.productId').trim().notEmpty().withMessage('Invalid product id'),
     body('items.*.quantity').isInt({ min: 1, max: 99 }).withMessage('Item quantity must be between 1 and 99'),
-    body('items.*.image').trim().notEmpty().withMessage('Item image is required').isLength({ max: 300 }),
-    body('couponCode').optional({ nullable: true }).trim().isLength({ max: 32 }),
-    body('guestEmail').if((value, { req }) => !req.user).isEmail().withMessage('Guest email is required').normalizeEmail(),
-    body('shippingAddress.name').optional().trim().isLength({ max: 80 }),
-    body('shippingAddress.line1').optional().trim().isLength({ max: 120 }),
-    body('shippingAddress.city').optional().trim().isLength({ max: 80 }),
-    body('shippingAddress.state').optional().trim().isLength({ max: 80 }),
-    body('shippingAddress.zip').optional().trim().isLength({ max: 20 }),
   ],
   asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return sendError(res, errors.array()[0].msg, 422);
 
-    const { items, shippingAddress, guestEmail, couponCode } = req.body;
-    const productIds = items
-      .map(item => item.productId)
-      .filter(id => mongoose.Types.ObjectId.isValid(id));
-
-    const dbProducts = productIds.length > 0
-      ? await Product.find({ _id: { $in: productIds }, isActive: true }).lean()
-      : [];
-    const productById = new Map(dbProducts.map(product => [product._id.toString(), product]));
-
-    const normalizedItems = items.map((item) => {
-      if (!item.productId) {
-        return {
-          productId: null,
-          name: item.name,
-          image: item.image,
-          price: Number(item.price),
-          quantity: Number(item.quantity),
-        };
-      }
-
-      const product = productById.get(item.productId);
-      if (!product) {
-        const err = new Error(`Product ${item.productId} is not available`);
-        err.statusCode = 422;
-        throw err;
-      }
-
-      if (product.stock < Number(item.quantity)) {
-        const err = new Error(`${product.name} has only ${product.stock} units available`);
-        err.statusCode = 409;
-        throw err;
-      }
-
-      return {
-        productId: product._id,
-        name: product.name,
-        image: product.image,
-        price: product.price,
-        quantity: Number(item.quantity),
-      };
-    });
-
-    const subtotal = normalizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const { items } = req.body;
     
-    let discountAmount = 0;
-    if (couponCode) {
-       const coupon = await Coupon.findOne({ code: couponCode.toUpperCase(), active: true });
-       if (coupon && (!coupon.expiresAt || coupon.expiresAt > new Date()) && (!coupon.usageLimit || coupon.usedCount < coupon.usageLimit) && subtotal >= coupon.minSubtotal) {
-          discountAmount = coupon.calculateDiscount(subtotal);
-          coupon.usedCount += 1;
-          await coupon.save();
-       } else if (couponCode.toUpperCase() === 'MYTHIC10') {
-          // Fallback static discount
-          discountAmount = Number(Math.min(subtotal * 0.1, 50).toFixed(2));
-       }
+    // In a headless setup, we create a Shopify checkout/cart
+    // and return the URL to the frontend to redirect the user.
+    try {
+      const checkoutUrl = await shopifyService.createCart(items);
+      
+      // We can still create a pending order in our DB if we want,
+      // but for true headless, we just redirect.
+      sendSuccess(res, { checkoutUrl }, 201);
+    } catch (err) {
+      sendError(res, err.message || 'Failed to create Shopify checkout', 500);
     }
-
-    const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
-    const tax = parseFloat((subtotalAfterDiscount * TAX_RATE).toFixed(2));
-    const total = parseFloat((subtotalAfterDiscount + tax).toFixed(2));
-
-    const order = await Order.create({
-      user: req.user?._id || null,
-      guestEmail: req.user ? null : guestEmail,
-      items: normalizedItems,
-      subtotal: parseFloat(subtotalAfterDiscount.toFixed(2)),
-      tax,
-      total,
-      shippingAddress,
-      timeline: [
-        {
-          status: 'pending',
-          message: 'Order received and queued for confirmation.',
-          at: new Date(),
-        },
-      ],
-    });
-
-    sendSuccess(res, order, 201);
   })
 );
 

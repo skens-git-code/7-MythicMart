@@ -1,16 +1,11 @@
 import React from 'react';
 import { ArrowUpRight, Play, Sparkles } from 'lucide-react';
 import { ROUTES, toHashPath } from '../../utils/routes';
-import '../../styles/HeroSection.css'; // Might not need this if we rely completely on global index.css, but keeping for safety.
+import '../../styles/HeroSection.css';
 
 const HeroSection = () => {
   return (
     <section className="hero" id="home" aria-label="MythicMart premium shopping experience">
-      <div className="hero-3d-container">
-        {/* We can place 3D elements or extra ambient effects here if needed, 
-            but global index.css already has gradients in App.jsx */}
-      </div>
-
       <div className="hero-content">
         <span className="hero-subtitle">
           <Sparkles size={15} aria-hidden="true" style={{ display: 'inline-block', marginRight: '8px', verticalAlign: 'text-bottom' }} />
@@ -28,11 +23,11 @@ const HeroSection = () => {
         </p>
         
         <div className="hero-buttons stagger-animation">
-          <a href="#products" className="hero-btn primary">
+          <a href={toHashPath(ROUTES.PRODUCTS)} className="hero-btn primary">
             Explore products <ArrowUpRight size={19} aria-hidden="true" />
           </a>
-          <a href={toHashPath(ROUTES.DASHBOARD)} className="hero-btn outline">
-            <Play size={18} aria-hidden="true" /> View dashboard
+          <a href={toHashPath(ROUTES.SERVICES)} className="hero-btn outline">
+            <Play size={18} aria-hidden="true" /> See how it works
           </a>
         </div>
       </div>
