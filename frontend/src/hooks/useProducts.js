@@ -45,15 +45,20 @@ export const useProducts = (category = 'all', sort = 'newest', search = '', page
       params.append('limit', String(limit));
 
       const response = await api.get(`/products?${params.toString()}`);
-      
-      const formatted = response.data.map(normalizeProduct);
+      const remoteProducts = Array.isArray(response?.data) ? response.data : [];
+      if (!Array.isArray(response?.data)) {
+        throw new Error('Catalog response was invalid');
+      }
+
+      const formatted = remoteProducts.map(normalizeProduct);
       const nextPagination = response.pagination || { page, limit, total: formatted.length, pages: formatted.length ? 1 : 0 };
       productCache.set(cacheKey, { products: formatted, pagination: nextPagination, timestamp: Date.now() });
       setProducts(formatted);
       setPagination(nextPagination);
-    } catch (err) {
+    } catch (requestError) {
       setProducts([]);
-      setError(err.error || err.message || 'API unavailable');
+      setPagination({ page, limit, total: 0, pages: 0 });
+      setError(requestError?.error || requestError?.message || 'The product catalog is unavailable.');
     } finally {
       setLoading(false);
     }

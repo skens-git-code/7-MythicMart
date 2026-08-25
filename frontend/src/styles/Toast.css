@@ -1,3 +1,35 @@
+.toast {
+  position: relative;
+  overflow: hidden;
+  /* existing styles */
+}
+
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.toast-progress-bar {
+  height: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  transition: width 0.1s linear;
+}
+
+.toast-success .toast-progress-bar {
+  background: #28a745;
+}
+
+.toast-error .toast-progress-bar {
+  background: #dc3545;
+}
+
+.toast-info .toast-progress-bar {
+  background: #17a2b8;
+}
 /* ── Toast Container ── */
 .toast-container {
   position: fixed;

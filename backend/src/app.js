@@ -24,6 +24,7 @@ import analyticsRouter from './routes/analytics.js';
 import newsletterRouter from './routes/newsletter.js';
 import productSyncRouter from './routes/productSync.js';
 import customersRouter from './routes/customers.js';
+import paymentsRouter from './routes/payments.js';
 
 const app = express();
 
@@ -80,6 +81,7 @@ app.use('/api/notifications', notificationsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/newsletter', newsletterRouter);
+app.use('/api/payments', paymentsRouter);
 
 /* ── Root Endpoint ── */
 app.get('/', (req, res) => {

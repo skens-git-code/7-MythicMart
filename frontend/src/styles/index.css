@@ -20,6 +20,20 @@
     --c-border:        rgba(0, 212, 255, 0.14);
     --c-border-glow:   rgba(0, 212, 255, 0.45);
 
+    /* Canonical component tokens. All feature styles consume these aliases. */
+    --bg-elevated:     #111a30;
+    --btn-radius:      12px;
+    --glass-blur:      blur(18px) saturate(160%);
+    --accent-lime:     #d8ff59;
+    --text-tertiary:   #64748b;
+    --c-text-muted:    #64748b;
+    --clr-red:         #ef4444;
+    --c-text:          #f1f5f9;
+    --bg-secondary:    var(--c-bg-alt);
+    --accent-gold:     var(--clr-gold);
+    --c-accent:        var(--clr-primary);
+    --swatch:          var(--clr-primary);
+
     /* ── Shared aliases used by feature-level styles ── */
     --font-display:    'Outfit', 'Poppins', sans-serif;
     --container-width: 1280px;
@@ -158,6 +172,14 @@
     --glass-border:    1px solid rgba(0,136,204,.15);
     --glass-shadow:    0 8px 32px rgba(0,0,0,.08);
     --glass-strong:    rgba(255, 255, 255, 0.92);
+    --bg-elevated:     #ffffff;
+    --text-tertiary:   #64748b;
+    --c-text-muted:    #64748b;
+    --c-text:          #0f172a;
+    --bg-secondary:    var(--c-bg-alt);
+    --accent-gold:     var(--clr-gold);
+    --c-accent:        var(--clr-primary);
+    --swatch:          var(--clr-primary);
     --glass-search-bg: rgba(15, 23, 42, 0.045);
     --glass-search-focus: rgba(255, 255, 255, 0.98);
     --bg-muted:        rgba(100, 116, 139, 0.1);

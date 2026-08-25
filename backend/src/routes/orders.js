@@ -11,6 +11,7 @@ import { authorize, protect, optionalAuth } from '../middleware/auth.js';
 import { requireDatabase } from '../middleware/requireDatabase.js';
 import { config } from '../config/env.js';
 import { syncShopifyOrders, getShopifyOrderSyncStatus } from '../services/shopifyOrderSyncService.js';
+import Customer from '../models/Customer.js';
 
 const router = Router();
 
@@ -123,6 +124,12 @@ router.post(
         timeline: [{ status: 'confirmed', message: 'Order received and queued for fulfillment.' }],
       });
       if (req.user?._id) {
+        await Customer.updateOne(
+          { user: req.user._id },
+          { $inc: { orderCount: 1, totalSpent: order.total }, $set: { lastOrderAt: order.createdAt, lastActivityAt: order.createdAt } },
+        );
+      }
+      if (req.user?._id) {
         try {
           await Notification.create({
             user: req.user._id,
@@ -199,13 +206,14 @@ router.get(
     if (fulfillmentStatus && fulfillmentStatus !== 'all') filter.fulfillmentStatus = fulfillmentStatus;
     if (from || to) filter.createdAt = { ...(from ? { $gte: new Date(from) } : {}), ...(to ? { $lte: new Date(`${to}T23:59:59.999Z`) } : {}) };
     if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       filter.$or = [
-        { orderNumber: { $regex: search, $options: 'i' } },
-        { guestEmail: { $regex: search, $options: 'i' } },
-        { 'customer.email': { $regex: search, $options: 'i' } },
-        { 'customer.name': { $regex: search, $options: 'i' } },
-        { 'items.name': { $regex: search, $options: 'i' } },
-        { 'shippingAddress.name': { $regex: search, $options: 'i' } },
+        { orderNumber: { $regex: escaped, $options: 'i' } },
+        { guestEmail: { $regex: escaped, $options: 'i' } },
+        { 'customer.email': { $regex: escaped, $options: 'i' } },
+        { 'customer.name': { $regex: escaped, $options: 'i' } },
+        { 'items.name': { $regex: escaped, $options: 'i' } },
+        { 'shippingAddress.name': { $regex: escaped, $options: 'i' } },
       ];
     }
     const sortBy = sort === 'oldest' ? { createdAt: 1 } : sort === 'total-high' ? { total: -1, createdAt: -1 } : sort === 'total-low' ? { total: 1, createdAt: -1 } : { createdAt: -1 };

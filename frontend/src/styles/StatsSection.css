@@ -1,3 +1,25 @@
+.stats-section {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.stats-section.stats-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
 /* ── Stats Section Layout ── */
 .stats-section {
     display: flex;

@@ -1,6 +1,7 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import { ensureTestDb, closeTestDb } from './testHelper.js';
 
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'super-secret-jwt-key-for-test-32-chars-minimum';
@@ -8,14 +9,8 @@ const { default: app } = await import('../app.js');
 const { default: Product } = await import('../models/Product.js');
 
 after(async () => {
-  if (mongoose.connection.readyState !== 0) await mongoose.disconnect();
+  await closeTestDb();
 });
-
-const ensureDb = async () => {
-  if (mongoose.connection.readyState !== 1) {
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/mythicmart');
-  }
-};
 
 const withServer = async (fn) => {
   const server = app.listen(0);
@@ -27,7 +22,7 @@ const withServer = async (fn) => {
 };
 
 test('PERSISTENCE FLOWS: profile, settings, newsletter, notifications', async () => {
-  await ensureDb();
+  await ensureTestDb();
   await withServer(async (baseUrl) => {
     const email = `persistence.${Date.now()}@mythicmart.test`;
     const register = await fetch(`${baseUrl}/api/auth/register`, {
@@ -83,7 +78,7 @@ test('PERSISTENCE FLOWS: profile, settings, newsletter, notifications', async ()
 });
 
 test('PERSISTENCE VALIDATION rejects reviews for missing products', async () => {
-  await ensureDb();
+  await ensureTestDb();
   await withServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/reviews`, {
       method: 'POST',

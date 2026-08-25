@@ -80,6 +80,59 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const handleRequestPasswordReset = async (email) => {
+    try {
+      setError(null);
+      const response = await api.post('/auth/forgot-password', { email });
+      if (response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, error: response.error || 'Password reset request failed' };
+    } catch (err) {
+      const msg = err.error === 'Database is temporarily unavailable'
+        ? 'The account service is unavailable because the database is offline. Start MongoDB and try again.'
+        : err.error || err.message || 'Password reset request failed';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+  };
+
+  const handleVerifyOtp = async (email, otp) => {
+    try {
+      setError(null);
+      const response = await api.post('/auth/verify-otp', { email, otp });
+      if (response.success) {
+        return { success: true, data: response.data };
+      }
+      return { success: false, error: response.error || 'Invalid OTP' };
+    } catch (err) {
+      const msg = err.error === 'Database is temporarily unavailable'
+        ? 'The account service is unavailable because the database is offline. Start MongoDB and try again.'
+        : err.error || err.message || 'OTP verification failed';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+  };
+
+  const handleResetPassword = async (email, password, otp, token) => {
+    try {
+      setError(null);
+      const response = await api.post('/auth/reset-password', { email, password, otp, token });
+      if (response.success && response.data.token) {
+        localStorage.setItem(STORAGE_KEYS.TOKEN, response.data.token);
+        setUser(response.data.user);
+        return { success: true, data: response.data };
+      }
+      return { success: false, error: response.error || 'Password reset failed' };
+    } catch (err) {
+      const msg = err.error === 'Database is temporarily unavailable'
+        ? 'The account service is unavailable because the database is offline. Start MongoDB and try again.'
+        : err.error || err.message || 'Password reset failed';
+      setError(msg);
+      return { success: false, error: msg };
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -89,6 +142,9 @@ export const AuthProvider = ({ children }) => {
         error,
         login: handleLogin,
         register: handleRegister,
+        requestPasswordReset: handleRequestPasswordReset,
+        verifyOtp: handleVerifyOtp,
+        resetPassword: handleResetPassword,
         logout: handleLogout,
         updateUser,
       }}

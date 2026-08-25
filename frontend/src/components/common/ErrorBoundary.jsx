@@ -33,6 +33,7 @@ class ErrorBoundary extends React.Component {
                     </h2>
                     <p>Please refresh the page to try again.</p>
                     <button
+                        type="button"
                         onClick={() => window.location.reload()}
                         style={{
                             marginTop: '1rem',

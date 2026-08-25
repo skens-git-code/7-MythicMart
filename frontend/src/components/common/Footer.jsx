@@ -68,7 +68,9 @@ const Footer = () => {
           <h4>Stay Updated</h4>
           <p>Get curated drops and operations insights.</p>
           <form className="newsletter-form" onSubmit={handleNewsletter}>
+            <label className="sr-only" htmlFor="footer-newsletter-email">Email address</label>
             <input
+              id="footer-newsletter-email"
               type="email"
               placeholder="Email Address"
               className="newsletter-input"
@@ -77,7 +79,7 @@ const Footer = () => {
               required
             />
             <button type="submit" className="hero-btn primary" disabled={isSubmitting} style={{ minWidth: '0', padding: '0 20px', height: '100%', borderRadius: '25px' }} aria-label="Subscribe">
-              <ArrowRight size={18} />
+              <ArrowRight size={18} aria-hidden="true" />
             </button>
           </form>
         </div>

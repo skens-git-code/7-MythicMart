@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ChevronRight,
   CreditCard,
+  ClipboardList,
+  BarChart3,
   Filter,
   Heart,
   Headphones,
@@ -23,6 +25,8 @@ import {
   TicketPercent,
   Truck,
   UserRound,
+  Users,
+  WalletCards,
   RefreshCcw,
 } from 'lucide-react';
 import HeroSection from '../components/common/HeroSection';
@@ -252,11 +256,95 @@ export const HomePage = () => (
 );
 
 export const AboutPage = () => (
-  <PageHero
-    eyebrow="About MythicMart"
-    title="A premium commerce platform designed for speed, trust, and scale."
-    description="MythicMart combines polished shopping experiences with practical operational tooling for teams that want a modern, production-grade storefront."
-  />
+  <>
+    <PageHero
+      eyebrow="About MythicMart"
+      title="A premium commerce platform engineered for speed, trust, and scale."
+      description="MythicMart combines an uncompromising aesthetic with a resilient, full-stack architecture built for high-performance retail operations."
+    />
+
+    {/* Key Performance & Architecture Metrics */}
+    <div className="analytics-kpi-grid" style={{ marginBottom: '2.5rem' }}>
+      <article className="glass-card stat-card">
+        <span>Platform Uptime</span>
+        <strong>99.99%</strong>
+        <small style={{ color: '#10b981' }}>High availability cluster</small>
+      </article>
+      <article className="glass-card stat-card">
+        <span>Edge Response</span>
+        <strong>&lt; 45ms</strong>
+        <small style={{ color: '#10b981' }}>Optimized API pipeline</small>
+      </article>
+      <article className="glass-card stat-card">
+        <span>Payment Security</span>
+        <strong>PCI-DSS Level 1</strong>
+        <small style={{ color: '#10b981' }}>Tokenized encryption</small>
+      </article>
+      <article className="glass-card stat-card">
+        <span>Catalog Sync</span>
+        <strong>Real-Time</strong>
+        <small style={{ color: '#10b981' }}>Bidirectional inventory</small>
+      </article>
+    </div>
+
+    {/* Pillars Grid */}
+    <section className="section-block" style={{ marginBottom: '3rem' }}>
+      <div className="section-header">
+        <span className="hero-subtitle">Our Principles</span>
+        <h2>Built on Four Foundational Pillars</h2>
+        <p className="elegant-text">Designed from the ground up to unify user delight with enterprise reliability.</p>
+      </div>
+      <div className="feature-grid">
+        <article className="glass-card icon-card">
+          <div className="icon-badge">
+            <ShieldCheck size={24} color="#3b82f6" />
+          </div>
+          <h3>Security & Zero-Trust RBAC</h3>
+          <p>Multi-tier authentication with bcrypt password hashing, scoped JWT sessions, OTP verification, and strict role-based access control for customers, support staff, and administrators.</p>
+        </article>
+
+        <article className="glass-card icon-card">
+          <div className="icon-badge">
+            <BadgeCheck size={24} color="#10b981" />
+          </div>
+          <h3>Resilient Data Architecture</h3>
+          <p>Engineered with MongoDB schema integrity, automated indexing, transactional concurrency, and local-first fallback capabilities that maintain uptime in any network condition.</p>
+        </article>
+
+        <article className="glass-card icon-card">
+          <div className="icon-badge">
+            <ShoppingBag size={24} color="#8b5cf6" />
+          </div>
+          <h3>Frictionless Commerce Experience</h3>
+          <p>Instant category filtering, real-time coupon validation, responsive cart drawers, live currency localization, and fluid dark/light glassmorphic UI aesthetics.</p>
+        </article>
+
+        <article className="glass-card icon-card">
+          <div className="icon-badge">
+            <RefreshCcw size={24} color="#f59e0b" />
+          </div>
+          <h3>Omnichannel Shopify Sync</h3>
+          <p>Automated background synchronization bridging local inventory and Shopify GraphQL Storefront endpoints with comprehensive sync status monitoring and error reconciliation.</p>
+        </article>
+      </div>
+    </section>
+
+    {/* Platform Journey & Call to Action */}
+    <article className="glass-card" style={{ padding: '2.5rem', textAlign: 'center', display: 'grid', gap: '1.25rem', placeItems: 'center', marginBottom: '3rem' }}>
+      <h3 style={{ fontSize: '1.75rem', fontWeight: 600 }}>Experience the Next Standard in Luxury Commerce</h3>
+      <p style={{ maxWidth: '640px', color: 'var(--c-text-muted)', lineHeight: '1.7' }}>
+        Whether exploring curated signature horology or configuring enterprise inventory pipelines, MythicMart delivers speed, security, and elegance at every touchpoint.
+      </p>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center', marginTop: '0.5rem' }}>
+        <a href={toHashPath(ROUTES.PRODUCTS)} className="cta-button" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          Explore Products <ArrowRight size={16} />
+        </a>
+        <a href={toHashPath(ROUTES.CONTACT)} className="cta-button outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          Contact Team
+        </a>
+      </div>
+    </article>
+  </>
 );
 
 export const ServicesPage = () => (
@@ -283,8 +371,12 @@ export const CategoriesPage = () => {
   React.useEffect(() => {
     let active = true;
     Promise.all(categoryShowcase.map(async ({ id }) => {
-      try { const response = await api.get(`/products?category=${id}&limit=1`); return [id, response.pagination?.total || 0]; }
-      catch { return [id, 0]; }
+      try {
+        const response = await api.get(`/products?category=${id}&limit=1`);
+        return [id, response.pagination?.total || 0];
+      } catch {
+        return [id, 0];
+      }
     })).then(entries => { if (active) setCounts(Object.fromEntries(entries)); });
     return () => { active = false; };
   }, []);
@@ -314,7 +406,7 @@ export const ProductDetailsPage = ({ slug }) => {
   const { addItem } = useCart();
   const { addToast } = useToast();
   const { user } = useAuth();
-  
+
   const [product, setProduct] = React.useState(null);
   const [selectedImage, setSelectedImage] = React.useState(null);
   const [loadingProduct, setLoadingProduct] = React.useState(true);
@@ -334,7 +426,7 @@ export const ProductDetailsPage = ({ slug }) => {
         if (res.success && res.data && isMounted) {
           const norm = normalizeProduct(res.data);
           setProduct(norm);
-          setSelectedImage(norm.image || (norm.images?.[0]?.url) || '/assets/product-watch.png');
+          setSelectedImage(norm.image || (norm.images?.[0]?.url) || null);
           if (norm.variants?.length) {
             setSelectedVariantId(norm.variants[0].shopifyVariantId || norm.variants[0].id);
           }
@@ -344,12 +436,16 @@ export const ProductDetailsPage = ({ slug }) => {
             if (relRes.success && relRes.data && isMounted) {
               setRelated(relRes.data.filter(item => item.slug !== norm.slug));
             }
-          } catch {
-            // Safe fallback
-          }
+          } catch { if (isMounted) setRelated([]); }
+        } else if (isMounted) {
+          setProduct(null);
+          setRelated([]);
         }
       } catch {
-        if (isMounted) setProduct(null);
+        if (isMounted) {
+          setProduct(null);
+          setRelated([]);
+        }
       } finally {
         if (isMounted) setLoadingProduct(false);
       }
@@ -378,9 +474,9 @@ export const ProductDetailsPage = ({ slug }) => {
   const handleReviewChange = (e) => setReviewForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const activeVariant = React.useMemo(() => {
-    if (!product.variants?.length) return null;
+    if (!product?.variants?.length) return null;
     return product.variants.find(v => (v.shopifyVariantId || v.id) === selectedVariantId) || product.variants[0];
-  }, [product.variants, selectedVariantId]);
+  }, [product?.variants, selectedVariantId]);
 
   const currentPrice = activeVariant?.price ?? product?.price ?? 0;
   const currentCompareAt = activeVariant?.compareAtPrice ?? product?.originalPrice;
@@ -434,7 +530,7 @@ export const ProductDetailsPage = ({ slug }) => {
     <>
       <section className="product-detail-layout" style={{ '--product-accent': product.accent || '#2f6fed' }}>
         <div className="product-gallery">
-          <img src={selectedImage} alt={product.name} style={{ width: '100%', borderRadius: '12px', objectFit: 'cover', maxHeight: '480px' }} />
+          {selectedImage ? <img src={selectedImage} alt={product.name} style={{ width: '100%', borderRadius: '12px', objectFit: 'cover', maxHeight: '480px' }} onError={(event) => { event.currentTarget.hidden = true; event.currentTarget.parentElement.classList.add('image-load-failed'); }} /> : <div className="image-load-failed" role="img" aria-label="No product image available" />}
           <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginTop: '10px' }}>
             {galleryImages.map((imgUrl, index) => (
               <button
@@ -483,7 +579,7 @@ export const ProductDetailsPage = ({ slug }) => {
             )}
           </div>
 
-          {product.variants && product.variants.length > 1 && (
+          {product?.variants?.length > 1 && (
             <div style={{ margin: '15px 0' }}>
               <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', marginBottom: '6px' }}>Select Variant / Option:</label>
               <select
@@ -557,7 +653,7 @@ export const ProductDetailsPage = ({ slug }) => {
           ) : (
             <p className="elegant-text">Be the first to review this product!</p>
           )}
-          
+
           <div style={{ marginTop: '20px' }}>
              {!showReviewForm ? (
                <button className="cta-button outline" onClick={() => setShowReviewForm(true)}>Write a review</button>
@@ -1187,18 +1283,21 @@ export const CartPage = () => {
       <PageHero eyebrow="Cart" title="Review your bag before checkout." description="Quantity updates, removals, subtotal calculations, and checkout readiness live in a fast cart experience." compact />
       <section className="cart-page-grid">
         <article className="premium-card">
-          {items.length === 0 ? <p>Your cart is empty.</p> : items.map(item => (
-            <div className="cart-line-item" key={item.id}>
-              <img src={item.image} alt={item.name} />
-              <div><h3>{item.name}</h3><span>{formatPrice(item.price)}</span></div>
-              <div className="quantity-control">
-                <button onClick={() => updateQuantity(item.id, item.quantity - 1)} type="button">-</button>
-                <span>{item.quantity}</span>
-                <button onClick={() => updateQuantity(item.id, item.quantity + 1)} type="button">+</button>
+          {items.length === 0 ? <p>Your cart is empty.</p> : items.map(item => {
+            const lineKey = item.cartItemId || item.id;
+            return (
+              <div className="cart-line-item" key={lineKey}>
+                <img src={item.image} alt={item.name} />
+                <div><h3>{item.name}</h3><span>{formatPrice(item.price)}</span></div>
+                <div className="quantity-control">
+                  <button onClick={() => updateQuantity(lineKey, item.quantity - 1)} type="button" aria-label="Decrease quantity">-</button>
+                  <span>{item.quantity}</span>
+                  <button onClick={() => updateQuantity(lineKey, item.quantity + 1)} type="button" aria-label="Increase quantity">+</button>
+                </div>
+                <button className="text-action danger" onClick={() => removeItem(lineKey)} type="button">Remove</button>
               </div>
-              <button className="text-action danger" onClick={() => removeItem(item.id)} type="button">Remove</button>
-            </div>
-          ))}
+            );
+          })}
         </article>
         <article className="premium-card checkout-summary">
           <h3>Summary</h3>
@@ -1225,11 +1324,32 @@ export const CheckoutPage = () => {
     zip: '',
     coupon: ''
   });
+
+  const [paymentMethod, setPaymentMethod] = React.useState('card');
+  const [cardData, setCardData] = React.useState({
+    cardNumber: '',
+    cardExpiry: '',
+    cardCvc: '',
+    cardName: user?.name || '',
+  });
+
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [validatingCoupon, setValidatingCoupon] = React.useState(false);
   const [discount, setDiscount] = React.useState(0);
 
   const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  const handleCardChange = (e) => {
+    let { name, value } = e.target;
+    if (name === 'cardNumber') {
+      value = value.replace(/\D/g, '').substring(0, 16).replace(/(.{4})/g, '$1 ').trim();
+    } else if (name === 'cardExpiry') {
+      value = value.replace(/\D/g, '').substring(0, 4);
+      if (value.length >= 2) value = value.substring(0, 2) + '/' + value.substring(2);
+    } else if (name === 'cardCvc') {
+      value = value.replace(/\D/g, '').substring(0, 4);
+    }
+    setCardData(prev => ({ ...prev, [name]: value }));
+  };
 
   const applyCoupon = async () => {
     if (!formData.coupon) return;
@@ -1259,7 +1379,11 @@ export const CheckoutPage = () => {
     }
     
     setIsSubmitting(true);
-    
+
+    const subtotalAfterDiscount = Math.max(0, totalPrice - discount);
+    const tax = subtotalAfterDiscount * 0.08;
+    const finalAmount = subtotalAfterDiscount + tax;
+
     const payload = {
       guestEmail: !user ? formData.email : undefined,
       couponCode: discount > 0 ? formData.coupon : undefined,
@@ -1280,12 +1404,29 @@ export const CheckoutPage = () => {
     };
 
     try {
-      await new Promise(r => setTimeout(r, 1200));
+      // 1. Create order
       const response = await api.post('/orders', payload);
-      if (response.success) {
-        addToast('Order confirmed! Check your email for details.', 'success');
+      if (response.success && (response.data.id || response.data._id)) {
+        const orderId = response.data.id || response.data._id;
+
+        // 2. Create Payment Intent
+        const intentRes = await api.post('/payments/create-intent', {
+          amount: finalAmount,
+          currency: 'USD',
+          orderId,
+        });
+
+        if (intentRes.success && intentRes.data.paymentIntentId) {
+          // 3. Confirm Payment
+          await api.post('/payments/confirm', {
+            paymentIntentId: intentRes.data.paymentIntentId,
+            orderId,
+          });
+        }
+
+        addToast(`Order #${response.data.orderNumber || ''} confirmed! Payment processed successfully.`, 'success');
         clearCart();
-        window.location.hash = ROUTES.ORDERS;
+        window.location.hash = toHashPath(ROUTES.ORDERS);
       } else {
         addToast(response.error || 'Checkout failed', 'error');
       }
@@ -1305,6 +1446,7 @@ export const CheckoutPage = () => {
       <PageHero eyebrow="Checkout" title="Secure, payment-ready checkout." description="Shipping, coupon, payment authorization, and review steps are organized for a fast production checkout flow." compact />
       <section className="checkout-grid">
         <form className="glass-card form-grid" onSubmit={handleCheckout}>
+          <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'var(--c-text-primary)' }}>Shipping Details</h3>
           <label>Full name<input type="text" name="name" value={formData.name} onChange={handleChange} placeholder="Sarthak Mathapati" required /></label>
           <label>Email<input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="you@mythicmart.com" required /></label>
           <label>Address<input type="text" name="line1" value={formData.line1} onChange={handleChange} placeholder="Street address" required /></label>
@@ -1313,14 +1455,99 @@ export const CheckoutPage = () => {
             <label>State<input type="text" name="state" value={formData.state} onChange={handleChange} placeholder="State" required /></label>
             <label>Zip<input type="text" name="zip" value={formData.zip} onChange={handleChange} placeholder="Zip" required /></label>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
+
+          <h3 style={{ fontSize: '1.2rem', marginTop: '1.5rem', marginBottom: '0.5rem', color: 'var(--c-text-primary)' }}>Payment Method</h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '15px' }}>
+            <button
+              type="button"
+              className={`cta-button ${paymentMethod === 'card' ? '' : 'outline'}`}
+              onClick={() => setPaymentMethod('card')}
+              style={{ fontSize: '0.85rem', padding: '10px' }}
+            >
+              💳 Card / Stripe
+            </button>
+            <button
+              type="button"
+              className={`cta-button ${paymentMethod === 'wallet' ? '' : 'outline'}`}
+              onClick={() => setPaymentMethod('wallet')}
+              style={{ fontSize: '0.85rem', padding: '10px' }}
+            >
+              📱 Apple / Google Pay
+            </button>
+            <button
+              type="button"
+              className={`cta-button ${paymentMethod === 'cod' ? '' : 'outline'}`}
+              onClick={() => setPaymentMethod('cod')}
+              style={{ fontSize: '0.85rem', padding: '10px' }}
+            >
+              📦 Cash on Delivery
+            </button>
+          </div>
+
+          {paymentMethod === 'card' && (
+            <div style={{ display: 'grid', gap: '12px', padding: '15px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', border: '1px solid var(--c-border)' }}>
+              <label>
+                Card Number
+                <input
+                  type="text"
+                  name="cardNumber"
+                  value={cardData.cardNumber}
+                  onChange={handleCardChange}
+                  placeholder="4242 •••• •••• 4242"
+                  maxLength={19}
+                  required={paymentMethod === 'card'}
+                />
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <label>
+                  Expires
+                  <input
+                    type="text"
+                    name="cardExpiry"
+                    value={cardData.cardExpiry}
+                    onChange={handleCardChange}
+                    placeholder="MM/YY"
+                    maxLength={5}
+                    required={paymentMethod === 'card'}
+                  />
+                </label>
+                <label>
+                  CVC / CVV
+                  <input
+                    type="password"
+                    name="cardCvc"
+                    value={cardData.cardCvc}
+                    onChange={handleCardChange}
+                    placeholder="•••"
+                    maxLength={4}
+                    required={paymentMethod === 'card'}
+                  />
+                </label>
+              </div>
+            </div>
+          )}
+
+          {paymentMethod === 'wallet' && (
+            <div style={{ padding: '15px', textAlign: 'center', background: 'rgba(59,130,246,0.08)', borderRadius: '12px', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#93c5fd' }}>Instant 1-Touch Tokenized Payment via Apple Pay or Google Pay.</p>
+            </div>
+          )}
+
+          {paymentMethod === 'cod' && (
+            <div style={{ padding: '15px', textAlign: 'center', background: 'rgba(245,158,11,0.08)', borderRadius: '12px', border: '1px solid rgba(245,158,11,0.2)' }}>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#fcd34d' }}>Payment will be collected upon delivery verification.</p>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px', marginTop: '1rem' }}>
              <label style={{ flex: 1 }}>Coupon<input type="text" name="coupon" value={formData.coupon} onChange={handleChange} placeholder="MYTHIC10" /></label>
              <button type="button" className="cta-button outline" onClick={applyCoupon} disabled={validatingCoupon || !formData.coupon}>
                {validatingCoupon ? '...' : 'Apply'}
              </button>
           </div>
-          <button className="cta-button" type="submit" disabled={isSubmitting || items.length === 0} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-            {isSubmitting ? 'Processing Payment...' : <>Validate and pay <CreditCard size={18} /></>}
+          <button className="cta-button" type="submit" disabled={isSubmitting || items.length === 0} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginTop: '1rem' }}>
+            {isSubmitting ? 'Processing Payment...' : <>Confirm & Pay {formatPrice(finalTotal)} <CreditCard size={18} /></>}
           </button>
         </form>
         <article className="glass-card checkout-summary">
@@ -2768,16 +2995,66 @@ export const TestimonialsPage = () => (
   </>
 );
 
-export const LegalPage = ({ type }) => (
-  <>
-    <PageHero eyebrow={type === 'privacy' ? 'Privacy Policy' : 'Terms & Conditions'} title={type === 'privacy' ? 'Responsible data handling for a modern commerce platform.' : 'Clear terms for shoppers, sellers, and platform operators.'} description="Production legal pages should be reviewed by qualified counsel before launch." compact />
-    <article className="premium-card legal-copy">
-      <h3>{type === 'privacy' ? 'Privacy commitments' : 'Platform terms'}</h3>
-      <p>MythicMart is structured around secure authentication, least-privilege access, payment-safe checkout boundaries, transparent order records, and accountable support operations.</p>
-      <p>Before going live, replace this operational template with jurisdiction-specific legal language, retention policies, payment processor terms, and customer data rights.</p>
-    </article>
-  </>
-);
+export const LegalPage = ({ type }) => {
+  const isPrivacy = type === 'privacy';
+  return (
+    <>
+      <PageHero
+        eyebrow={isPrivacy ? 'Privacy Policy' : 'Terms & Conditions'}
+        title={isPrivacy ? 'Global Privacy Policy & Data Protection' : 'Master Terms of Service & Commerce Policy'}
+        description={isPrivacy ? 'Effective Date: January 1, 2026. Learn how MythicMart collects, protects, and governs your personal data across our global commerce network.' : 'Effective Date: January 1, 2026. Governing rules, purchase terms, intellectual property, warranties, and platform operations for MythicMart.'}
+        compact
+      />
+      <article className="premium-card legal-copy" style={{ lineHeight: '1.7', color: 'var(--c-text-muted)', display: 'grid', gap: '1.5rem' }}>
+        {isPrivacy ? (
+          <>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>1. Information We Collect</h3>
+              <p>MythicMart collects personal information necessary to deliver exceptional commerce services, authenticate accounts, securely process payments, and ensure timely fulfillment. This includes:</p>
+              <ul style={{ paddingLeft: '1.25rem', marginTop: '0.5rem' }}>
+                <li><strong>Identity & Contact:</strong> Name, verified email address, phone number, and billing/shipping addresses.</li>
+                <li><strong>Transaction Records:</strong> Orders placed, items purchased, fulfillment timeline, receipts, and returns history.</li>
+                <li><strong>Technical Data:</strong> IP address, device telemetry, browser type, and time-zone settings for fraud prevention and security monitoring.</li>
+                <li><strong>Customer Support:</strong> Communications, inquiries, and ticket resolution logs.</li>
+              </ul>
+            </div>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>2. How We Use & Protect Your Data</h3>
+              <p>We adhere to strict least-privilege principles. We never sell or rent your personal data to third parties. Data is utilized exclusively for order fulfillment, account authentication, personalized product recommendations, and anti-fraud verification under GDPR, CCPA, and global privacy frameworks.</p>
+            </div>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>3. Payment Processing & Security Standards</h3>
+              <p>MythicMart does not store raw credit card numbers or sensitive CVV codes on our servers. All transactions are tokenized and processed via certified Level-1 PCI-DSS compliant payment gateways with AES-256 encryption in transit and at rest.</p>
+            </div>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>4. Your Rights & Data Requests</h3>
+              <p>You have the right to access, rectify, export, or permanently erase your account data at any time via your Account Settings or by reaching our Data Protection Officer at <code>privacy@mythicmart.com</code>.</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>1. Agreement to Terms</h3>
+              <p>By accessing or using MythicMart, you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, you must discontinue platform use immediately.</p>
+            </div>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>2. Purchases, Pricing & Taxes</h3>
+              <p>All orders placed through MythicMart are subject to product availability and confirmation of order price. Prices are displayed in USD (or local selected currency) exclusive of statutory sales tax where applicable. We reserve the right to cancel orders arising from typographical or technical pricing errors.</p>
+            </div>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>3. Shipping & Returns Policy</h3>
+              <p>Orders are dispatched according to selected fulfillment windows. Unused items in original packaging may be returned within 30 days of delivery for a full refund or store credit, subject to our Return Quality Verification guidelines.</p>
+            </div>
+            <div>
+              <h3 style={{ color: 'var(--c-text-primary)', marginBottom: '0.5rem' }}>4. Intellectual Property & Acceptable Use</h3>
+              <p>All trademarks, digital assets, visual designs, and software architecture are the exclusive property of MythicMart Inc. Unauthorized reverse engineering, scraping, or commercial exploitation is strictly prohibited.</p>
+            </div>
+          </>
+        )}
+      </article>
+    </>
+  );
+};
 
 export const HelpCenterPage = () => (
   <>

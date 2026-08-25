@@ -6,6 +6,7 @@ import CartDrawer from './features/cart/components/CartDrawer';
 import ToastContainer from './components/common/Toast';
 import AppRouter from './components/layout/AppRouter';
 import './styles/App.css';
+import './styles/ProductionPolish.css';
 
 const App = () => {
   const { theme } = useTheme();

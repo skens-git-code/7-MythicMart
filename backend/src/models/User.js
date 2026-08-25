@@ -1,4 +1,5 @@
 /* User model — bcrypt hashing, JWT support, indexed by email */
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
@@ -100,6 +101,22 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
+    },
+    otpCode: {
+      type: String,
+      select: false,
+    },
+    otpExpires: {
+      type: Date,
+      select: false,
+    },
     wishlist: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -116,6 +133,10 @@ const userSchema = new mongoose.Schema(
         delete ret._id;
         delete ret.__v;
         delete ret.password;
+        delete ret.resetPasswordToken;
+        delete ret.resetPasswordExpires;
+        delete ret.otpCode;
+        delete ret.otpExpires;
         return ret;
       },
     },
@@ -137,6 +158,20 @@ userSchema.pre('save', async function () {
 /* Compare plain password against stored hash */
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return bcrypt.compare(candidatePassword, this.password);
+};
+
+/* Generate 6-digit OTP code and hashed reset token */
+userSchema.methods.createPasswordResetToken = function () {
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  this.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+  this.resetPasswordExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  // Generate 6-digit numeric OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  this.otpCode = crypto.createHash('sha256').update(otp).digest('hex');
+  this.otpExpires = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  return { resetToken, otp };
 };
 
 userSchema.methods.toAuthJSON = function () {

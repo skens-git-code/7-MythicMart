@@ -1,6 +1,7 @@
 import test, { after, before } from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import { ensureTestDb, closeTestDb } from './testHelper.js';
 
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'super-secret-jwt-key-for-test-32-chars-minimum';
@@ -11,15 +12,11 @@ const { default: User } = await import('../models/User.js');
 const { default: Coupon } = await import('../models/Coupon.js');
 
 before(async () => {
-  if (mongoose.connection.readyState !== 1) {
-    await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/mythicmart');
-  }
+  await ensureTestDb();
 });
 
 after(async () => {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
-  }
+  await closeTestDb();
 });
 
 const withServer = async (fn) => {

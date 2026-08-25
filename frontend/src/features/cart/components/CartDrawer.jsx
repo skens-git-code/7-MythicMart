@@ -52,40 +52,43 @@ const CartDrawer = () => {
           </div>
         ) : (
           <ul className="cart-items-list" style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {items.map(item => (
-              <li key={item.id} className="cart-item glass-card" style={{ padding: '15px', display: 'flex', gap: '15px' }}>
-                <img src={item.image} alt={item.name} className="cart-item-image" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px' }} loading="lazy" />
-                <div className="cart-item-info" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div className="cart-item-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <h3 style={{ fontSize: '0.95rem', margin: 0, color: 'var(--text)' }}>{item.name}</h3>
-                    <button
-                      className="item-remove-btn"
-                      onClick={() => removeItem(item.id)}
-                      aria-label={`Remove ${item.name}`}
-                      style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', padding: '5px' }}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                  <div className="cart-item-bottom" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-                    <div className="qty-controls" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '20px', padding: '2px 10px' }}>
+            {items.map(item => {
+              const lineKey = item.cartItemId || item.id;
+              return (
+                <li key={lineKey} className="cart-item glass-card" style={{ padding: '15px', display: 'flex', gap: '15px' }}>
+                  <img src={item.image} alt={item.name} className="cart-item-image" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px' }} loading="lazy" />
+                  <div className="cart-item-info" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div className="cart-item-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <h3 style={{ fontSize: '0.95rem', margin: 0, color: 'var(--text)' }}>{item.name}</h3>
                       <button
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        aria-label="Decrease quantity"
-                        style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }}
-                      >-</button>
-                      <span style={{ fontSize: '0.9rem', color: 'var(--text)' }}>{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        aria-label="Increase quantity"
-                        style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }}
-                      >+</button>
+                        className="item-remove-btn"
+                        onClick={() => removeItem(lineKey)}
+                        aria-label={`Remove ${item.name}`}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--error)', cursor: 'pointer', padding: '5px' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </div>
-                    <span className="cart-item-price" style={{ fontWeight: 'bold', color: 'var(--text)' }}>{formatPrice(item.price * item.quantity)}</span>
+                    <div className="cart-item-bottom" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                      <div className="qty-controls" style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.05)', borderRadius: '20px', padding: '2px 10px' }}>
+                        <button
+                          onClick={() => updateQuantity(lineKey, item.quantity - 1)}
+                          aria-label="Decrease quantity"
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }}
+                        >-</button>
+                        <span style={{ fontSize: '0.9rem', color: 'var(--text)' }}>{item.quantity}</span>
+                        <button
+                          onClick={() => updateQuantity(lineKey, item.quantity + 1)}
+                          aria-label="Increase quantity"
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px' }}
+                        >+</button>
+                      </div>
+                      <span className="cart-item-price" style={{ fontWeight: 'bold', color: 'var(--text)' }}>{formatPrice(item.price * item.quantity)}</span>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

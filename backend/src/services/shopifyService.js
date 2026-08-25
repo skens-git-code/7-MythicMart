@@ -35,7 +35,14 @@ export const getProducts = async ({ limit = 20, page = 1, sortKey = 'CREATED_AT'
   if (!localCatalogMode() && !shopifySyncConfigured()) return { products: [], total: 0, page, limit, pages: 0, syncStatus: 'shopify_not_configured' };
   const filter = localCatalogMode() ? { isActive: true } : { source: 'shopify', isActive: true };
   if (category && category !== 'all') filter.category = category.toLowerCase();
-  if (query) filter.$text = { $search: query };
+  if (query) {
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    filter.$or = [
+      { name: { $regex: escaped, $options: 'i' } },
+      { description: { $regex: escaped, $options: 'i' } },
+      { tags: { $regex: escaped, $options: 'i' } },
+    ];
+  }
   const sort = sortKey === 'PRICE' ? { price: reverse ? -1 : 1 } : sortKey === 'BEST_SELLING' ? { rating: reverse ? -1 : 1, reviewCount: -1 } : localCatalogMode() ? { createdAt: reverse ? -1 : 1 } : { shopifyProductUpdatedAt: reverse ? -1 : 1 };
   const skip = Math.max(0, page - 1) * limit;
   const [rows, total, sync] = await Promise.all([Product.find(filter).sort(sort).skip(skip).limit(limit).lean(), Product.countDocuments(filter), getShopifySyncStatus()]);

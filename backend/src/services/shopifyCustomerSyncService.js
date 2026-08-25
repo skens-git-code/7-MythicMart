@@ -1,5 +1,6 @@
 import Customer from '../models/Customer.js';
 import User from '../models/User.js';
+import Order from '../models/Order.js';
 import SyncRun from '../models/SyncRun.js';
 import { config } from '../config/env.js';
 
@@ -13,7 +14,7 @@ const requestPage = async variables => {
   if (!payload.data?.customers) throw new Error('Shopify Customers API returned an invalid response.');
   return payload.data.customers;
 };
-export const normalizeShopifyCustomer = customer => ({ source: 'shopify', shopifyCustomerId: customer.id, name: customer.displayName || [customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Shopify customer', email: customer.email, phone: customer.phone || null, addresses: customer.defaultAddress ? [{ name: customer.defaultAddress.name, line1: customer.defaultAddress.address1, line2: customer.defaultAddress.address2, city: customer.defaultAddress.city, state: customer.defaultAddress.province, zip: customer.defaultAddress.zip, country: customer.defaultAddress.country }] : [], status: 'active', orderCount: Number(customer.numberOfOrders || 0), totalSpent: Number(customer.amountSpent?.amount || 0), currency: customer.amountSpent?.currencyCode || 'USD', lastActivityAt: customer.updatedAt, createdAt: customer.createdAt });
+export const normalizeShopifyCustomer = customer => ({ source: 'shopify', shopifyCustomerId: customer.id, name: customer.displayName || [customer.firstName, customer.lastName].filter(Boolean).join(' ') || 'Shopify customer', ...(customer.email ? { email: customer.email } : {}), phone: customer.phone || null, addresses: customer.defaultAddress ? [{ name: customer.defaultAddress.name, line1: customer.defaultAddress.address1, line2: customer.defaultAddress.address2, city: customer.defaultAddress.city, state: customer.defaultAddress.province, zip: customer.defaultAddress.zip, country: customer.defaultAddress.country }] : [], status: 'active', orderCount: Number(customer.numberOfOrders || 0), totalSpent: Number(customer.amountSpent?.amount || 0), currency: customer.amountSpent?.currencyCode || 'USD', lastActivityAt: customer.updatedAt, createdAt: customer.createdAt });
 let running = false;
 export const syncShopifyCustomers = async () => {
   if (running) return { status: 'in_progress' };
@@ -26,7 +27,9 @@ export const syncShopifyCustomers = async () => {
       const page = await requestPage({ first: 250, after });
       for (const node of page.nodes || []) {
         const normalized = normalizeShopifyCustomer(node); fetched += 1;
-        const existing = await Customer.findOne({ $or: [{ shopifyCustomerId: normalized.shopifyCustomerId }, { email: normalized.email }] }).select('_id').lean();
+        const identity = [{ shopifyCustomerId: normalized.shopifyCustomerId }];
+        if (normalized.email) identity.push({ email: normalized.email });
+        const existing = await Customer.findOne({ $or: identity }).select('_id').lean();
         const result = existing ? await Customer.updateOne({ _id: existing._id }, { $set: normalized }, { runValidators: true }) : await Customer.create(normalized);
         if (result?.upsertedCount || result?.modifiedCount || result?._id) upserted += 1;
       }
@@ -41,7 +44,12 @@ export const getShopifyCustomerSyncStatus = () => SyncRun.findOne({ source: 'sho
 export const syncLocalCustomers = async () => {
   const users = await User.find({}).select('name email phone isActive createdAt lastLoginAt').lean();
   if (!users.length) return 0;
-  const operations = users.map(user => ({ updateOne: { filter: { email: user.email }, update: { $set: { user: user._id, source: 'local', name: user.name, email: user.email, phone: user.phone || null, status: user.isActive ? 'active' : 'disabled', lastActivityAt: user.lastLoginAt || user.createdAt }, $setOnInsert: { createdAt: user.createdAt } }, upsert: true } }));
+  const operations = users.map(user => ({ updateOne: { filter: { email: user.email }, update: { $set: { user: user._id, name: user.name, email: user.email, phone: user.phone || null, status: user.isActive ? 'active' : 'disabled', lastActivityAt: user.lastLoginAt || user.createdAt }, $setOnInsert: { source: 'local', createdAt: user.createdAt } }, upsert: true } }));
   await Customer.bulkWrite(operations, { ordered: false });
+  const stats = await Order.aggregate([
+    { $match: { user: { $in: users.map(user => user._id) } } },
+    { $group: { _id: '$user', orderCount: { $sum: 1 }, totalSpent: { $sum: '$total' }, lastOrderAt: { $max: '$createdAt' } } },
+  ]);
+  if (stats.length) await Customer.bulkWrite(stats.map(item => ({ updateOne: { filter: { user: item._id }, update: { $set: { orderCount: item.orderCount, totalSpent: item.totalSpent, lastOrderAt: item.lastOrderAt } } } })), { ordered: false });
   return users.length;
 };

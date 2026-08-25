@@ -16,17 +16,19 @@ export const CartProvider = ({ children }) => {
 
     const addItem = useCallback((product) => {
         setItems(prev => {
-            const variantId = product.variantId || product.shopifyVariantIds?.[0] || product.id;
-            const existing = prev.find(item => item.id === product.id && item.variantId === variantId);
+            const variantId = product.variantId || product.shopifyVariantIds?.[0] || 'default';
+            const cartItemId = `${product.id}_${variantId}`;
+            const existing = prev.find(item => (item.cartItemId || item.id) === cartItemId);
             if (existing) {
                 return prev.map(item =>
-                    item.id === product.id && item.variantId === variantId
+                    (item.cartItemId || item.id) === cartItemId
                         ? { ...item, quantity: Math.min(item.quantity + 1, 99) }
                         : item
                 );
             }
             const cartProduct = {
                 id: product.id,
+                cartItemId,
                 name: product.name,
                 image: product.image,
                 price: Number(product.price),
@@ -38,17 +40,19 @@ export const CartProvider = ({ children }) => {
         });
     }, [setItems]);
 
-    const removeItem = useCallback((productId) => {
-        setItems(prev => prev.filter(item => item.id !== productId));
+    const removeItem = useCallback((lineIdentifier) => {
+        setItems(prev => prev.filter(item => (item.cartItemId || item.id) !== lineIdentifier && item.id !== lineIdentifier));
     }, [setItems]);
 
-    const updateQuantity = useCallback((productId, quantity) => {
+    const updateQuantity = useCallback((lineIdentifier, quantity) => {
         if (quantity <= 0) {
-            removeItem(productId);
+            removeItem(lineIdentifier);
             return;
         }
         setItems(prev => prev.map(item =>
-            item.id === productId ? { ...item, quantity: Math.min(Number(quantity), 99) } : item
+            ((item.cartItemId || item.id) === lineIdentifier || item.id === lineIdentifier)
+                ? { ...item, quantity: Math.min(Number(quantity), 99) }
+                : item
         ));
     }, [setItems, removeItem]);
 

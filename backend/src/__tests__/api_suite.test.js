@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import mongoose from 'mongoose';
+import { ensureTestDb, closeTestDb } from './testHelper.js';
 
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'super-secret-jwt-key-for-test-32-chars-minimum';
@@ -20,15 +21,8 @@ const withServer = async (fn) => {
   }
 };
 
-const ensureDb = async () => {
-  if (mongoose.connection.readyState !== 1) {
-    const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/mythicmart';
-    await mongoose.connect(mongoUri);
-  }
-};
-
 test('BACKEND MASTER QA TEST SUITE', async (t) => {
-  await ensureDb();
+  await ensureTestDb();
 
   // Test 1: Root & Health
   await t.test('Root endpoint and Health check', async () => {
@@ -422,10 +416,109 @@ test('BACKEND MASTER QA TEST SUITE', async (t) => {
       assert.equal(malformedRes.status, 400);
     });
   });
+
+  // Test 11: Password Recovery & OTP Verification Flow
+  await t.test('Password Recovery & OTP Verification', async () => {
+    await withServer(async (baseUrl) => {
+      const email = `recovery.${Date.now()}@mythicmart.test`;
+
+      // 1. Register test user
+      const regRes = await fetch(`${baseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Recovery Tester', email, password: 'Password123' }),
+      });
+      assert.equal(regRes.status, 201);
+
+      // 2. Request Forgot Password
+      const forgotRes = await fetch(`${baseUrl}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const forgotBody = await forgotRes.json();
+      assert.equal(forgotRes.status, 200);
+      assert.equal(forgotBody.success, true);
+      assert.ok(forgotBody.data.testOtp);
+      assert.ok(forgotBody.data.testToken);
+
+      const { testOtp, testToken } = forgotBody.data;
+
+      // 3. Verify OTP
+      const verifyRes = await fetch(`${baseUrl}/api/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp: testOtp }),
+      });
+      const verifyBody = await verifyRes.json();
+      assert.equal(verifyRes.status, 200);
+      assert.equal(verifyBody.success, true);
+      assert.equal(verifyBody.data.valid, true);
+
+      // 4. Reset Password with OTP
+      const resetRes = await fetch(`${baseUrl}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'NewSecurePassword456', otp: testOtp }),
+      });
+      const resetBody = await resetRes.json();
+      assert.equal(resetRes.status, 200);
+      assert.equal(resetBody.success, true);
+      assert.ok(resetBody.data.token);
+
+      // 5. Login with new password
+      const loginRes = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'NewSecurePassword456' }),
+      });
+      const loginBody = await loginRes.json();
+      assert.equal(loginRes.status, 200);
+      assert.equal(loginBody.success, true);
+    });
+  });
+
+  // Test 12: Payments Integration (Config, Intent, Confirm)
+  await t.test('Payments API & Intent Confirmation', async () => {
+    await withServer(async (baseUrl) => {
+      // 1. Payment Config
+      const configRes = await fetch(`${baseUrl}/api/payments/config`);
+      const configBody = await configRes.json();
+      assert.equal(configRes.status, 200);
+      assert.equal(configBody.success, true);
+      assert.ok(Array.isArray(configBody.data.supportedMethods));
+
+      // 2. Create Intent
+      const intentRes = await fetch(`${baseUrl}/api/payments/create-intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: 150.00, currency: 'USD' }),
+      });
+      const intentBody = await intentRes.json();
+      assert.equal(intentRes.status, 201);
+      assert.equal(intentBody.success, true);
+      assert.ok(intentBody.data.clientSecret);
+      assert.ok(intentBody.data.paymentIntentId);
+
+      // 3. Webhook simulation
+      const webhookRes = await fetch(`${baseUrl}/api/payments/webhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'payment_intent.succeeded',
+          data: {
+            object: {
+              id: intentBody.data.paymentIntentId,
+              status: 'succeeded',
+            },
+          },
+        }),
+      });
+      assert.equal(webhookRes.status, 200);
+    });
+  });
 });
 
 test.after(async () => {
-  if (mongoose.connection.readyState !== 0) {
-    await mongoose.disconnect();
-  }
+  await closeTestDb();
 });

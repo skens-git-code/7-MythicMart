@@ -1,0 +1,81 @@
+/* Product-wide visual contract. Keep page-level styles focused on composition. */
+:root {
+  --container-width: 1240px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.08);
+  --shadow-md: 0 14px 34px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 24px 60px rgba(15, 23, 42, 0.16);
+}
+
+[data-theme='dark'] {
+  --accent-lime: var(--clr-primary);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+body { line-height: 1.6; }
+h1, h2, h3, h4 { text-wrap: balance; }
+p { max-width: 72ch; }
+
+.main-content { gap: var(--space-8); }
+.page-hero { min-height: 300px; padding-block: var(--space-8) var(--space-6); }
+.page-hero.compact { min-height: 0; padding-block: var(--space-6) var(--space-4); }
+.page-hero h1 { font-size: clamp(2.25rem, 5vw, 4rem); letter-spacing: -0.04em; }
+.section-heading h2 { font-size: clamp(1.75rem, 3.4vw, 2.75rem); letter-spacing: -0.03em; }
+.page-eyebrow, .status-pill, .card-meta { border-radius: var(--radius-pill); letter-spacing: 0.06em; }
+
+.premium-card, .metric-card, .product-mini-card, .category-showcase-card,
+.glass-card { border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.premium-card:hover, .metric-card:hover, .product-mini-card:hover, .category-showcase-card:hover { box-shadow: var(--shadow-md); }
+
+.primary-action, .secondary-action, .cta-button, .hero-btn,
+.category-pill, .theme-toggle, .icon-btn, select, input, textarea { border-radius: var(--radius-md); }
+.primary-action, .secondary-action, .cta-button, .hero-btn { min-height: 44px; font-weight: 700; }
+.primary-action:focus-visible, .secondary-action:focus-visible, .cta-button:focus-visible,
+.hero-btn:focus-visible, .icon-btn:focus-visible, .theme-toggle:focus-visible,
+.category-pill:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--clr-primary) 55%, transparent);
+  outline-offset: 2px;
+}
+
+input, textarea, select { min-height: 44px; border: 1px solid var(--c-border); background: var(--glass-search-bg); padding: 0.65rem 0.8rem; }
+textarea { min-height: 110px; resize: vertical; }
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: 0.58; }
+
+.empty-state, .section-loading { min-height: 220px; display: grid; place-items: center; align-content: center; gap: 0.5rem; padding: var(--space-7); text-align: center; color: var(--text-secondary); }
+.empty-state strong { color: var(--text-primary); font-size: 1.2rem; }
+.responsive-table { border-radius: var(--radius-md); }
+table th { color: var(--text-secondary); font-size: 0.72rem; letter-spacing: 0.05em; text-transform: uppercase; }
+table td, table th { padding: 0.85rem 0.75rem; }
+
+.toast-container { right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom)); }
+.toast { border-radius: var(--radius-md); box-shadow: var(--shadow-md); }
+.minimal-modal { border-radius: var(--radius-lg); }
+
+@media (max-width: 900px) {
+  .main-content { gap: var(--space-7); }
+  .page-hero { min-height: 0; padding-block: var(--space-6) var(--space-4); }
+  .page-hero h1 { font-size: clamp(2rem, 7vw, 3rem); }
+}
+@media (max-width: 640px) {
+  .main-content { width: min(100% - 24px, 560px); gap: var(--space-6); }
+  .page-hero, .premium-section { padding-inline: 0; }
+  .page-hero h1 { font-size: clamp(1.9rem, 9vw, 2.6rem); }
+  .section-heading h2 { font-size: clamp(1.55rem, 7vw, 2.1rem); }
+  .feature-grid, .metric-grid, .split-panel, .checkout-grid, .cart-page-grid, .auth-layout, .product-detail-layout { gap: var(--space-3); }
+  .premium-card, .metric-card { padding: var(--space-4); }
+  .toast { min-width: 0; }
+}
